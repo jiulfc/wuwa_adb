@@ -74,25 +74,39 @@ struct PickupTextCondition: Decodable {
         regions = try values.decode([[Double]].self, forKey: .regions)
     }
 
-    func validate() throws {
-        guard !regions.isEmpty else {
-            throw replayError("拾取文字条件需要非空 regions 区域数组。")
+    func validate(deviceWidth: Int32, deviceHeight: Int32) throws {
+        guard deviceWidth > 0, deviceHeight > 0, !regions.isEmpty else {
+            throw replayError("拾取文字条件需要正数画面尺寸和非空 regions 区域数组。")
         }
         for region in regions {
-            try TextStopCondition(text: text, region: region).validate()
+            guard region.count == 4, region.allSatisfy(\.isFinite),
+                  region[0] >= 0, region[1] >= 0, region[2] > 0, region[3] > 0,
+                  region[0] + region[2] <= Double(deviceWidth),
+                  region[1] + region[3] <= Double(deviceHeight) else {
+                throw replayError("拾取文字区域超出 deviceWidth / deviceHeight。")
+            }
+            try TextStopCondition(text: text,
+                                  region: normalizedRegion(region, deviceWidth: deviceWidth, deviceHeight: deviceHeight)).validate()
         }
     }
 
-    func matchingRegion(in frame: URL,
+    func matchingRegion(in frame: URL, deviceWidth: Int32, deviceHeight: Int32,
                         onCheck: ([Double], String, Bool) throws -> Void) throws -> [Double]? {
-        try validate()
+        try validate(deviceWidth: deviceWidth, deviceHeight: deviceHeight)
         for region in regions {
-            let condition = TextStopCondition(text: text, region: region)
+            let condition = TextStopCondition(text: text,
+                                              region: normalizedRegion(region, deviceWidth: deviceWidth,
+                                                                       deviceHeight: deviceHeight))
             let recognized = try condition.recognize(in: frame)
             let matched = condition.matches(recognized)
             try onCheck(region, recognized, matched)
             if matched { return region }
         }
         return nil
+    }
+
+    func normalizedRegion(_ region: [Double], deviceWidth: Int32, deviceHeight: Int32) -> [Double] {
+        [region[0] / Double(deviceWidth), region[1] / Double(deviceHeight),
+         region[2] / Double(deviceWidth), region[3] / Double(deviceHeight)]
     }
 }

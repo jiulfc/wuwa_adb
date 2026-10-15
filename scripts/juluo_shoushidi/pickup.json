@@ -1,0 +1,103 @@
+{
+  "version": 3,
+  "deviceHeight": 1440,
+  "deviceWidth": 3168,
+  "type": "pickup",
+  "pickup_text": {
+    "text": "吸收",
+    "regions": [
+      [2041, 589, 111, 46],
+      [2041, 715, 111, 46]
+    ]
+  },
+  "movement": {
+    "joystick": [0.15814394, 0.75],
+    "radius": [0.063131313, 0.138888889],
+    "steps": [
+      {
+        "direction": "up",
+        "seconds": 1
+      },
+      {
+        "direction": "left",
+        "seconds": 2
+      },
+      {
+        "direction": "right",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "left",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "right",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "left",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "right",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "left",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "right",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "left",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "right",
+        "seconds": 4
+      },
+      {
+        "direction": "down",
+        "seconds": 0.3
+      },
+      {
+        "direction": "left",
+        "seconds": 4
+      }
+    ]
+  }
+}

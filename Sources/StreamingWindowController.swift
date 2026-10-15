@@ -484,6 +484,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                                   checkCancelled: combinedCheck)
                     }, pickup: { pickup in
                         let pickedUp = try self.playPickup(pickup.movement, condition: pickup.pickup_text,
+                                                          deviceWidth: pickup.deviceWidth, deviceHeight: pickup.deviceHeight,
                                                           worker: worker, generation: generation, frameURL: frameURL,
                                                           checkCancelled: combinedCheck)
                         DispatchQueue.main.sync {
@@ -619,8 +620,10 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                            worker: SkillClassifier, generation: Int, frameURL: URL,
                            checkCancelled: WorkflowCancellationCheck) throws -> Bool {
         let regions = script.regions.filter { script.priority.contains($0.key) }
+            .mapValues { script.normalizedRegion($0) }
         var nextAction = DispatchTime.now()
         var nextCheck = DispatchTime.now()
+        var nextLock = script.lock_enemy.map { _ in DispatchTime.now() }
         var cycle = 0
         while cycle < steps {
             try checkCancelled()
@@ -628,12 +631,18 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             let now = DispatchTime.now()
             let checkDue = stop != nil && now >= nextCheck
             let actionDue = now >= nextAction
-            if !checkDue && !actionDue {
-                worker.wait(until: stop == nil ? nextAction : min(nextAction, nextCheck))
+            let lockDue = nextLock.map { now >= $0 } ?? false
+            if !checkDue && !actionDue && !lockDue {
+                var deadline = stop == nil ? nextAction : min(nextAction, nextCheck)
+                if let nextLock { deadline = min(deadline, nextLock) }
+                worker.wait(until: deadline)
                 continue
             }
-            let size = try decoder.saveCurrentFrame(to: frameURL)
-            try checkCancelled()
+            let size = checkDue || actionDue ? try decoder.saveCurrentFrame(to: frameURL) : nil
+            if size != nil { try checkCancelled() }
+            if let size, size.0 != Int(script.deviceWidth) || size.1 != Int(script.deviceHeight) {
+                throw replayError("battle 校准尺寸 \(script.deviceWidth)x\(script.deviceHeight) 与当前画面 \(size.0)x\(size.1) 不一致。")
+            }
             if checkDue, let stop {
                 nextCheck = now + stop.check_interval
                 for region in stop.match.text_regions {
@@ -648,7 +657,24 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                     if matched { return true }
                 }
             }
-            if !actionDue { continue }
+            if lockDue, let lock = script.lock_enemy, let r = script.regions[lock.button] {
+                try DispatchQueue.main.sync {
+                    guard self.playbackGeneration == generation, self.isPlayingBack,
+                          !self.didFinish, !worker.isCancelled,
+                          self.deviceWidth == UInt32(script.deviceWidth),
+                          self.deviceHeight == UInt32(script.deviceHeight),
+                          self.client?.controlSender != nil else {
+                        throw replayError("设备状态已变化，回放已停止。")
+                    }
+                    let normalized = script.normalizedRegion(r)
+                    let x = normalized[0] + normalized[2] / 2, y = normalized[1] + normalized[3] / 2
+                    self.executeEvent(.touch(action: Int(ControlSender.actionDown), relX: x, relY: y, t: 0))
+                    self.executeEvent(.touch(action: Int(ControlSender.actionUp), relX: x, relY: y, t: 0))
+                    self.client?.log("[Battle] Lock enemy tap: \(lock.button), pixel=(\(Int(r[0] + r[2] / 2)), \(Int(r[1] + r[3] / 2)))")
+                }
+                nextLock = .now() + lock.interval
+            }
+            guard actionDue, let size else { continue }
             let labels = try worker.classify(frame: frameURL, regions: regions)
             try checkCancelled()
             let skill = try script.selectedSkill(labels: labels)
@@ -661,11 +687,12 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                 }
                 self.client?.log("[Battle] Running \(self.controlInfoStore.runningScriptName ?? "—") steps: \(cycle + 1)/\(steps), area checks: " + script.priority.map { "\($0)=\(labels[$0] ?? "missing")" }.joined(separator: ", "))
                 if let skill, let r = script.regions[skill] {
-                    let x = r[0] + r[2] / 2, y = r[1] + r[3] / 2
+                    let normalized = script.normalizedRegion(r)
+                    let x = normalized[0] + normalized[2] / 2, y = normalized[1] + normalized[3] / 2
                     self.executeEvent(.touch(action: Int(ControlSender.actionDown), relX: x, relY: y, t: 0))
                     self.executeEvent(.touch(action: Int(ControlSender.actionUp), relX: x, relY: y, t: 0))
-                    self.client?.log("[Battle] Tap requested: \(skill), normalized=(\(x), \(y))")
-                    self.reportInfo("steps: \(cycle + 1)/\(steps) · 技能 \(skill)", point: (Int32(x * Double(size.0)), Int32(y * Double(size.1))))
+                    self.client?.log("[Battle] Tap requested: \(skill), pixel=(\(Int(r[0] + r[2] / 2)), \(Int(r[1] + r[3] / 2)))")
+                    self.reportInfo("steps: \(cycle + 1)/\(steps) · 技能 \(skill)", point: (Int32(r[0] + r[2] / 2), Int32(r[1] + r[3] / 2)))
                 } else {
                     self.reportInfo("steps: \(cycle + 1)/\(steps) · 无可用技能", point: nil)
                 }
@@ -677,10 +704,14 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
     }
 
     private func playPickup(_ movement: PickupMovement, condition: PickupTextCondition,
+                            deviceWidth: Int32, deviceHeight: Int32,
                             worker: SkillClassifier, generation: Int, frameURL: URL,
                             checkCancelled: WorkflowCancellationCheck) throws -> Bool {
         try checkCancelled()
         let size = try decoder.saveCurrentFrame(to: frameURL)
+        guard size.0 == Int(deviceWidth), size.1 == Int(deviceHeight) else {
+            throw replayError("pickup 校准尺寸 \(deviceWidth)x\(deviceHeight) 与当前画面 \(size.0)x\(size.1) 不一致。")
+        }
 
         func onMain(_ action: () -> Void) throws {
             try DispatchQueue.main.sync {
@@ -706,7 +737,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             try onMain { }
             let currentSize = try self.decoder.saveCurrentFrame(to: frameURL)
             guard currentSize == size else { throw replayError("视频尺寸已变化，拾取已停止。") }
-            let matchedRegion = try condition.matchingRegion(in: frameURL) { region, text, matched in
+            let matchedRegion = try condition.matchingRegion(in: frameURL,
+                                                              deviceWidth: deviceWidth, deviceHeight: deviceHeight) { region, text, matched in
                 try onMain {
                     self.client?.log("[Pickup] Check: target=\(condition.text.debugDescription), region=\(region), OCR=\(text.debugDescription), matched=\(matched)")
                 }
@@ -715,11 +747,13 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             if let region = matchedRegion {
                 releaseTouch()
                 try onMain {
-                    let x = region[0] + region[2] / 2
-                    let y = region[1] + region[3] / 2
+                    let pixelX = region[0] + region[2] / 2
+                    let pixelY = region[1] + region[3] / 2
+                    let x = pixelX / Double(deviceWidth)
+                    let y = pixelY / Double(deviceHeight)
                     self.executeEvent(.touch(action: Int(ControlSender.actionDown), relX: x, relY: y, t: 0))
                     self.executeEvent(.touch(action: Int(ControlSender.actionUp), relX: x, relY: y, t: 0))
-                    self.client?.log("[Pickup] Tap requested: pixel=(\(Int32(x * Double(size.0))), \(Int32(y * Double(size.1)))); movement stopped")
+                    self.client?.log("[Pickup] Tap requested: pixel=(\(Int32(pixelX)), \(Int32(pixelY))); movement stopped")
                 }
             }
             return matchedRegion != nil

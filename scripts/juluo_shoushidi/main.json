@@ -1,0 +1,51 @@
+{
+  "version": 3,
+  "vars": {
+    "counter": 0,
+    "stop_text": ""
+  },
+  "steps": [
+    {
+      "type": "while",
+      "condition": "${counter < 1}",
+      "steps": [
+        {
+          "type": "assign",
+          "target": "${counter}",
+          "value": "${counter + 1}"
+        },
+        {
+          "type": "script",
+          "script_name": "prepare.json"
+        },
+        {
+          "type": "monitor",
+          "interval_ms": 500,
+          "timeout_ms": 30000,
+          "until": "${stop_text contains '已' || stop_text contains '清'}",
+          "check": [
+            {
+              "type": "ocr_text",
+              "roi": [222, 397, 319, 49],
+              "output": "${stop_text}"
+            }
+          ],
+          "steps": [
+            {
+              "type": "script",
+              "script_name": "../common/combat_role_katixiya.json"
+            }
+          ]
+        },
+        {
+          "type": "script",
+          "script_name": "pickup_flow.json"
+        },
+        {
+          "type": "script",
+          "script_name": "finish.json"
+        }
+      ]
+    }
+  ]
+}

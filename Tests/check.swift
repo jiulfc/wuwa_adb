@@ -6,10 +6,12 @@ import AppKit
 struct Check {
     static func main() throws {
         setbuf(stdout, nil)
-        let regions = Dictionary(uniqueKeysWithValues: ["R", "E", "A", "D"].map { ($0, [0.25, 0.25, 0.5, 0.5]) })
+        let regions = Dictionary(uniqueKeysWithValues: ["R", "E", "A", "D"].map { ($0, [25.0, 25.0, 50.0, 50.0]) })
         let program = BattleScript(
-                                        priority: ["R", "E", "A", "D"], regions: regions)
+                                        deviceWidth: 100, deviceHeight: 100,
+                                        priority: ["R", "E", "A", "D"], regions: regions, lock_enemy: nil)
         try program.validate()
+        precondition(program.normalizedRegion(regions["R"]!) == [0.25, 0.25, 0.5, 0.5])
         for mask in 0..<16 {
             let labels = Dictionary(uniqueKeysWithValues: program.priority.enumerated().map {
                 ($0.element, mask & (1 << $0.offset) == 0 ? "not_useable" : "useable")
@@ -20,9 +22,10 @@ struct Check {
         }
         do { _ = try program.selectedSkill(labels: ["R": "useable"]); fatalError("Missing labels accepted") }
         catch { }
-        for invalid in [[0.0, 0, 0, 0], [-0.1, 0, 0.5, 0.5], [0.9, 0, 0.5, 0.5], [0, 0, Double.nan, 1]] {
+        for invalid in [[0.0, 0, 0, 0], [-0.1, 0, 50, 50], [90, 0, 50, 50], [0, 0, Double.nan, 100]] {
             let bad = BattleScript(
-                                        priority: ["R"], regions: ["R": invalid])
+                                        deviceWidth: 100, deviceHeight: 100,
+                                        priority: ["R"], regions: ["R": invalid], lock_enemy: nil)
             do { try bad.validate(); fatalError("Invalid region accepted") } catch { }
         }
         let old = Script(deviceWidth: 1584, deviceHeight: 720,
@@ -171,25 +174,25 @@ struct Check {
         let outside = try bottom.recognize(in: frame)
         precondition(!bottom.matches(outside), "OCR included text outside region")
         let pickupAreas = try JSONDecoder().decode(PickupTextCondition.self,
-            from: Data(#"{"text":["BATTLE DONE","领取"],"regions":[[0,0.5,1,0.5],[0,0,1,0.5],[0,0,1,1]]}"#.utf8))
+            from: Data(#"{"text":["BATTLE DONE","领取"],"regions":[[0,200,1000,200],[0,0,1000,200],[0,0,1000,400]]}"#.utf8))
         var checked: [Bool] = []
-        let matchedRegion = try pickupAreas.matchingRegion(in: frame) { _, _, matched in
+        let matchedRegion = try pickupAreas.matchingRegion(in: frame, deviceWidth: 1000, deviceHeight: 400) { _, _, matched in
             checked.append(matched)
         }
-        precondition(matchedRegion == [0, 0, 1, 0.5] && checked == [false, true],
+        precondition(matchedRegion == [0, 0, 1000, 200] && checked == [false, true],
                      "Pickup must select the first matching area and stop checking")
         let noMatch = try JSONDecoder().decode(PickupTextCondition.self,
-            from: Data(#"{"text":"ABSENT","regions":[[0,0,1,0.5],[0,0.5,1,0.5]]}"#.utf8))
+            from: Data(#"{"text":"ABSENT","regions":[[0,0,1000,200],[0,200,1000,200]]}"#.utf8))
         checked = []
-        let missingRegion = try noMatch.matchingRegion(in: frame) { _, _, matched in
+        let missingRegion = try noMatch.matchingRegion(in: frame, deviceWidth: 1000, deviceHeight: 400) { _, _, matched in
             checked.append(matched)
         }
         precondition(missingRegion == nil && checked == [false, false])
-        for invalid in ["[]", "[[0,0,1,1],[]]", "[[0,0,1,1],[0,0.9,1,0.5]]", "[0,0,1,1]", "null"] {
+        for invalid in ["[]", "[[0,0,1000,400],[]]", "[[0,0,1000,400],[0,390,1000,20]]", "[0,0,1000,400]", "null"] {
             let json = "{\"text\":\"DONE\",\"regions\":\(invalid)}"
             do {
                 let bad = try JSONDecoder().decode(PickupTextCondition.self, from: Data(json.utf8))
-                try bad.validate()
+                try bad.validate(deviceWidth: 1000, deviceHeight: 400)
                 fatalError("Invalid pickup regions accepted")
             } catch { }
         }

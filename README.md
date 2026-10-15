@@ -173,16 +173,22 @@ DSL 回放支持 `assign`、`while`、`if`、`monitor`、`script`、`tap`、`wai
 ```json
 {
   "version": 3,
+  "deviceWidth": 3168,
+  "deviceHeight": 1440,
   "type": "battle",
   "priority": ["S", "A"],
+  "lock_enemy": {"button": "L", "interval": 5},
   "regions": {
-    "S": [0.718434343, 0.65, 0.022727273, 0.05],
-    "A": [0.772727273, 0.694444444, 0.075757576, 0.166666667]
+    "S": [2276, 936, 72, 72],
+    "A": [2448, 1000, 240, 240],
+    "L": [935, 1200, 40, 40]
   }
 }
 ```
 
-`regions` 是技能名到区域的**对象**，不是数组。`priority` 非空且不重复，每个技能必须有合法区域。每轮从最新视频帧分类，按优先级点击首个 `useable` 技能中心；全部为 `not_useable` 时跳过点击，该轮仍计入 `steps`。模型响应缺失或未知分类会终止流程。点击日志表示已请求发送操作，不代表游戏已响应。
+`regions` 是按键名到绝对像素区域 `[x, y, width, height]` 的**对象**，左上角为原点。`deviceWidth` / `deviceHeight` 必须与当前画面尺寸一致，所有区域都必须位于画面内；程序仅在调用分类器和发送触摸时转换为相对坐标。`priority` 非空且不重复，每个技能必须有合法区域。每轮从最新视频帧分类，按优先级点击首个 `useable` 技能中心；全部为 `not_useable` 时跳过点击，该轮仍计入 `steps`。模型响应缺失或未知分类会终止流程。点击日志表示已请求发送操作，不代表游戏已响应。
+
+可选的 `lock_enemy` 在 battle 开始时立即点击一次，之后按 `interval` 秒重复点击 `button` 对应区域的中心，直到 battle 结束。该点击独立于技能轮次，不检查分类结果；`button` 必须存在于 `regions`，`interval` 必须为正数。
 
 `scripts/common/combat_role_*.json` 保留各角色的技能优先级和校准区域。
 
@@ -193,10 +199,12 @@ DSL 回放支持 `assign`、`while`、`if`、`monitor`、`script`、`tap`、`wai
 ```json
 {
   "version": 3,
+  "deviceWidth": 3168,
+  "deviceHeight": 1440,
   "type": "pickup",
   "pickup_text": {
     "text": "吸收",
-    "regions": [[0.644255051, 0.409027778, 0.035037879, 0.031944444]]
+    "regions": [[2041, 589, 111, 46]]
   },
   "movement": {
     "joystick": [0.15814394, 0.75],
@@ -206,7 +214,7 @@ DSL 回放支持 `assign`、`while`、`if`、`monitor`、`script`、`tap`、`wai
 }
 ```
 
-`pickup_text.text` 支持非空字符串或非空字符串数组；`regions` 是非空区域数组。先按区域顺序检查，首个匹配区域被点击一次后结束；没有匹配才执行有限移动路径。每移动最多 0.25 秒松开摇杆，等待 0.15 秒画面更新，再检查新帧；OCR 期间静止。路径耗尽后继续下一条 run，不无限搜索。
+`pickup_text.text` 支持非空字符串或非空字符串数组；`regions` 是非空的绝对像素区域 `[x, y, width, height]` 数组，必须位于 `deviceWidth` / `deviceHeight` 内且与当前画面尺寸一致。先按区域顺序检查，首个匹配区域被点击一次后结束；没有匹配才执行有限移动路径。每移动最多 0.25 秒松开摇杆，等待 0.15 秒画面更新，再检查新帧；OCR 期间静止。路径耗尽后继续下一条 run，不无限搜索。
 
 `joystick` 是归一化摇杆中心，`radius` 是横纵拖动距离；方向支持 `up/right/down/left`，`seconds` 是正数累计移动时间，不包含 OCR 和等待时间。现有共用文件保留全部 21 段路线和校准值。方向相对于镜头，没有定位或避障，移动速度与镜头变化后需要重新校准。
 

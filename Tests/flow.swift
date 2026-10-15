@@ -17,11 +17,18 @@ struct FlowCheck {
         }
         try write("before.json", #"{"version":3,"deviceWidth":100,"deviceHeight":100,"repeatCount":2,"events":[{"type":"key","key":"back","t":0}]}"#)
         try write("after.json", #"{"version":3,"deviceWidth":100,"deviceHeight":100,"events":[{"type":"key","key":"home","t":0}]}"#)
-        try write("battle.json", #"{"version":3,"type":"battle","priority":["R"],"regions":{"R":[0,0,1,1]}}"#)
-        try write("pickup.json", #"{"version":3,"type":"pickup","pickup_text":{"text":"吸收","regions":[[0,0,1,1]]},"movement":{"joystick":[0.5,0.5],"radius":[0.1,0.1],"steps":[{"direction":"up","seconds":0.3}]}}"#)
+        try write("battle.json", #"{"version":3,"deviceWidth":100,"deviceHeight":100,"type":"battle","priority":["R"],"regions":{"R":[0,0,100,100]},"lock_enemy":{"button":"R","interval":2}}"#)
+        try write("pickup.json", #"{"version":3,"deviceWidth":100,"deviceHeight":100,"type":"pickup","pickup_text":{"text":"吸收","regions":[[0,0,100,100]]},"movement":{"joystick":[0.5,0.5],"radius":[0.1,0.1],"steps":[{"direction":"up","seconds":0.3}]}}"#)
         try write("nested/flow.json", #"{"version":3,"script_loop_count":2,"run":["../before.json"]}"#)
         let json = #"{"version":3,"script_loop_count":2,"run":["nested/flow.json",{"name":"battle.json","interval":0.7,"steps":3,"stop_when":{"check_interval":0.2,"match":{"type":"text_any","text":["DONE","OK"],"text_regions":[[0,0,1,1]]}}},{"id":"pickup","name":"pickup.json"},"after.json"]}"#
         let flow = try load(json)
+        for json in [
+            #"{"version":3,"deviceWidth":100,"deviceHeight":100,"type":"battle","priority":["R"],"regions":{"R":[0,0,100,100]},"lock_enemy":{"button":"missing","interval":1}}"#,
+            #"{"version":3,"deviceWidth":100,"deviceHeight":100,"type":"battle","priority":["R"],"regions":{"R":[0,0,100,100]},"lock_enemy":{"button":"R","interval":0}}"#
+        ] {
+            let battle = try JSONDecoder().decode(BattleScript.self, from: Data(json.utf8))
+            do { try battle.validate(); fatalError("Invalid lock_enemy accepted: \(json)") } catch { }
+        }
         var events: [String] = []
         var ids: [String] = []
         var scriptNames: [String] = []
@@ -33,13 +40,17 @@ struct FlowCheck {
         }, recording: { script in
             events.append("\(script.events[0].key!):\(script.playbackRepeatCount)")
         }, battle: { script, interval, steps, stop in
-            precondition(script.priority == ["R"] && interval == 0.7 && steps == 3)
+            precondition(script.priority == ["R"] && script.lock_enemy?.button == "R" && script.lock_enemy?.interval == 2 && interval == 0.7 && steps == 3)
+            precondition(script.normalizedRegion(script.regions["R"]!) == [0, 0, 1, 1])
             precondition(stop?.match.text == ["DONE", "OK"] && stop?.check_interval == 0.2)
             events.append("battle")
             if failBattle { throw replayError("battle failed") }
             return matched
         }, pickup: { script in
-            precondition(script.movement.steps[0].seconds == 0.3)
+            precondition(script.deviceWidth == 100 && script.deviceHeight == 100 &&
+                         script.pickup_text.regions == [[0, 0, 100, 100]] && script.movement.steps[0].seconds == 0.3)
+            precondition(script.pickup_text.normalizedRegion(script.pickup_text.regions[0],
+                                                              deviceWidth: 100, deviceHeight: 100) == [0, 0, 1, 1])
             events.append("pickup")
         }, progress: { _, _ in }, entryStarted: {
             ids.append($0.id)
@@ -102,7 +113,7 @@ struct FlowCheck {
             #"{"version":3,"run":[{"id":1,"name":"before.json"}]}"#,
             #"{"version":3,"run":[{"id":"same","name":"before.json"},{"id":"same","name":"after.json"}]}"#,
             #"{"version":3,"run":["before.json",{"id":"step_1","name":"after.json"}]}"#,
-            #"{"type":"battle","priority":["R"],"regions":{"R":[0,0,1,1]}}"#,
+            #"{"type":"battle","deviceWidth":100,"deviceHeight":100,"priority":["R"],"regions":{"R":[0,0,100,100]}}"#,
             #"{"version":1,"deviceWidth":100,"deviceHeight":100,"events":[]}"#,
             #"{"version":2,"run":["before.json"]}"#,
             #"{"version":3,"run":[]}"#,
@@ -128,9 +139,9 @@ struct FlowCheck {
         do { _ = try load(#"{"version":3,"run":["a.json"]}"#); fatalError("Indirect cycle accepted") } catch { }
         try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("alias.json"), withDestinationURL: root.appendingPathComponent("main.json"))
         do { _ = try load(#"{"version":3,"run":["alias.json"]}"#); fatalError("Symlink cycle accepted") } catch { }
-        try write("bad.json", #"{"version":3,"type":"battle","priority":["R"],"regions":{"R":[0,0,0,1]}}"#)
+        try write("bad.json", #"{"version":3,"deviceWidth":100,"deviceHeight":100,"type":"battle","priority":["R"],"regions":{"R":[0,0,0,100]}}"#)
         do { _ = try load(#"{"version":3,"run":["bad.json"]}"#); fatalError("Bad battle accepted") } catch { }
-        try write("bad.json", #"{"version":3,"type":"pickup","pickup_text":{"text":"吸收","regions":[]},"movement":{"joystick":[],"radius":[],"steps":[]}}"#)
+        try write("bad.json", #"{"version":3,"deviceWidth":100,"deviceHeight":100,"type":"pickup","pickup_text":{"text":"吸收","regions":[]},"movement":{"joystick":[],"radius":[],"steps":[]}}"#)
         do { _ = try load(#"{"version":3,"run":["bad.json"]}"#); fatalError("Bad pickup accepted") } catch { }
         let absolute = root.appendingPathComponent("before.json").path
         let absoluteJSON = try JSONSerialization.data(withJSONObject: ["version": 3, "run": [absolute]])
@@ -146,14 +157,16 @@ struct FlowCheck {
         precondition(prepare.version == 3 && prepare.events.count == 121 && prepare.events.first?.t == 1.82292902469635)
         precondition(finish.version == 3 && finish.events.last?.t == 15)
         guard case .flow(_, let pickupEntries) = try LoadedScript.load(from: fixtures.appendingPathComponent("pickup_flow.json")),
-              pickupEntries.count == 1, case .pickup = pickupEntries[0].script,
+              pickupEntries.count == 1, case .pickup(let pickup) = pickupEntries[0].script,
               case .flow(_, let battleEntries) = try LoadedScript.load(from: URL(fileURLWithPath: "scripts/common/combat_role_katixiya_flow.json")),
               battleEntries.count == 1, case .battle(let battle) = battleEntries[0].script,
               case .flow(_, let qianxiaoEntries) = try LoadedScript.load(from: URL(fileURLWithPath: "scripts/common/combat_role_qianxiao_flow.json")),
               qianxiaoEntries.count == 1, case .battle(let qianxiao) = qianxiaoEntries[0].script else {
             fatalError("Expected v3 pickup and battle wrappers")
         }
-        precondition(battle.priority == ["E", "S", "A"] && qianxiao.priority == ["R", "E", "S", "A"])
+        precondition(battle.priority == ["E", "S", "A"] && battle.regions["L"] == [935, 1200, 40, 40] &&
+                     qianxiao.priority == ["R", "E", "S", "A"] && qianxiao.regions["R"] == [2124, 1084, 120, 120] &&
+                     pickup.pickup_text.regions == [[2041, 589, 111, 46], [2041, 715, 111, 46]])
 
         print("V3 load, recordings, configs, nested flows, defaults, cancellation, errors, cycles, and current fixtures passed")
     }

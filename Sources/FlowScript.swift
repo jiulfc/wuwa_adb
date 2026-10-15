@@ -1,18 +1,48 @@
 import Foundation
 
 struct BattleScript: Decodable {
+    struct LockEnemy: Decodable {
+        let button: String
+        let interval: Double
+    }
+
+    let deviceWidth: Int32
+    let deviceHeight: Int32
     let priority: [String]
     let regions: [String: [Double]]
+    let lock_enemy: LockEnemy?
 
     func validate() throws {
+        guard deviceWidth > 0, deviceHeight > 0 else {
+            throw replayError("battle 需要正数 deviceWidth / deviceHeight。")
+        }
         guard !priority.isEmpty, Set(priority).count == priority.count,
               priority.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
             throw replayError("battle 需要非空且不重复的 priority。")
         }
         for skill in priority {
-            guard let region = regions[skill] else { throw replayError("缺少技能区域：\(skill)") }
-            try TextStopCondition(text: skill, region: region).validate()
+            guard regions[skill] != nil else { throw replayError("缺少技能区域：\(skill)") }
         }
+        if let lock_enemy {
+            guard !lock_enemy.button.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  regions[lock_enemy.button] != nil,
+                  lock_enemy.interval.isFinite, lock_enemy.interval > 0, lock_enemy.interval < 1e9 else {
+                throw replayError("lock_enemy 需要 regions 中存在的 button 和正数 interval。")
+            }
+        }
+        for (button, region) in regions {
+            guard region.count == 4, region.allSatisfy(\.isFinite),
+                  region[0] >= 0, region[1] >= 0, region[2] > 0, region[3] > 0,
+                  region[0] + region[2] <= Double(deviceWidth),
+                  region[1] + region[3] <= Double(deviceHeight) else {
+                throw replayError("按键区域超出 deviceWidth / deviceHeight：\(button)")
+            }
+        }
+    }
+
+    func normalizedRegion(_ region: [Double]) -> [Double] {
+        [region[0] / Double(deviceWidth), region[1] / Double(deviceHeight),
+         region[2] / Double(deviceWidth), region[3] / Double(deviceHeight)]
     }
 
     func selectedSkill(labels: [String: String]) throws -> String? {
@@ -50,11 +80,13 @@ struct FlowStopCondition: Decodable {
 }
 
 struct PickupScript: Decodable {
+    let deviceWidth: Int32
+    let deviceHeight: Int32
     let pickup_text: PickupTextCondition
     let movement: PickupMovement
 
     func validate() throws {
-        try pickup_text.validate()
+        try pickup_text.validate(deviceWidth: deviceWidth, deviceHeight: deviceHeight)
         try movement.validate()
     }
 }
