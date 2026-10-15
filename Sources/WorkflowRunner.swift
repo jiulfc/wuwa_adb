@@ -8,6 +8,7 @@ struct WorkflowRunner {
     let script: (String, @escaping WorkflowCancellationCheck) throws -> Void
     let vision: (VisionKind, [Double], [String: JSONValue], WorkflowCancellationCheck) throws -> JSONValue
     let touch: ([Double], Bool) throws -> Void
+    let log: (String) -> Void
 
     func run(_ workflow: Workflow) throws {
         let variables = WorkflowVariables(workflow.variables)
@@ -30,7 +31,7 @@ struct WorkflowRunner {
         case .assign(let target, let input):
             variables.set(target, to: try value(input, variables.snapshot()))
         case .whileLoop(let condition, let steps):
-            while try boolean(condition, variables.snapshot()) {
+            while try conditionResult("while", condition, variables.snapshot()) {
                 try check()
                 switch try execute(steps, variables: variables, check: check) {
                 case .none, .continueLoop: continue
@@ -39,7 +40,7 @@ struct WorkflowRunner {
                 }
             }
         case .conditional(let condition, let yes, let no):
-            return try execute(boolean(condition, variables.snapshot()) ? yes : no,
+            return try execute(conditionResult("if", condition, variables.snapshot()) ? yes : no,
                                variables: variables, check: check)
         case .monitor(let interval, let timeout, let checkSteps, let until, let body):
             return try monitor(interval: try milliseconds(interval, variables.snapshot(), minimum: 1),
@@ -57,7 +58,13 @@ struct WorkflowRunner {
             var parameters: [String: JSONValue] = [:]
             for (name, input) in command.parameters { parameters[name] = try value(input, snapshot) }
             try validate(command.kind, parameters: parameters)
-            variables.set(command.output, to: try vision(command.kind, roi, parameters, check))
+            let result = try vision(command.kind, roi, parameters, check)
+            variables.set(command.output, to: result)
+            if case .string(let text) = result {
+                log("[Workflow] Step: type=\(command.kind.rawValue), output=\(command.output), text=\(text.debugDescription)")
+            } else {
+                log("[Workflow] Step: type=\(command.kind.rawValue), output=\(command.output), result=\(result)")
+            }
         case .tap(let point, let duration):
             let snapshot = variables.snapshot()
             let point = try coordinates(point, snapshot, count: 2)
@@ -82,7 +89,7 @@ struct WorkflowRunner {
         let scopedCheck = { try cancellation.check(parent: parentCheck) }
 
         _ = try execute(checkSteps, variables: variables, check: scopedCheck)
-        if try boolean(until, variables.snapshot()) { return .none }
+        if try conditionResult("monitor", until, variables.snapshot()) { return .none }
 
         let state = WorkflowMonitorState()
         let work = WorkflowMonitorWork(runner: self, body: body, variables: variables, check: scopedCheck)
@@ -105,7 +112,7 @@ struct WorkflowRunner {
 
                 _ = try execute(checkSteps, variables: variables, check: scopedCheck)
                 if let result = state.result { cancellation.cancel(); return try result.get() }
-                let matched = try boolean(until, variables.snapshot())
+                let matched = try conditionResult("monitor", until, variables.snapshot())
                 if let result = state.result { cancellation.cancel(); return try result.get() }
                 if matched {
                     cancellation.cancel()
@@ -201,6 +208,12 @@ struct WorkflowRunner {
 
     private func boolean(_ input: Input, _ variables: [String: JSONValue]) throws -> Bool {
         try boolean(value(input, variables))
+    }
+
+    private func conditionResult(_ type: String, _ input: Input, _ variables: [String: JSONValue]) throws -> Bool {
+        let matched = try boolean(input, variables)
+        log("[Workflow] Condition: type=\(type), matched=\(matched)")
+        return matched
     }
 
     private func boolean(_ value: JSONValue) throws -> Bool {

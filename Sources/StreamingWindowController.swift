@@ -546,6 +546,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                                          relX: x, relY: y, t: 0))
                                 self.client?.log("[Workflow] Touch \(down ? "down" : "up"): pixel=(\(Int(point[0])), \(Int(point[1])))")
                             }
+                        }, log: { message in
+                            DispatchQueue.main.sync { self.client?.log(message) }
                         })
                         try workflowRunner.run(loadedWorkflow.workflow)
                     }, progress: { current, total in

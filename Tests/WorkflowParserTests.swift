@@ -15,6 +15,7 @@ struct WorkflowParserCheck {
         [
             {"type":"assign","target":"${n}","value":"${1 + 2 * 3}"},
             {"type":"if","condition":"${n == 7}","then":[{"type":"script","script_name":"child.json"}]},
+            {"type":"ocr_text","roi":[0,0,20,20],"output":"${text}"},
             {"type":"template_match","roi":[0,0,20,20],"template":"button.png","threshold":0.8,"output":"${match}"},
             {"type":"if","condition":"${match.found}","then":[{"type":"tap","point":"${match.point}","duration_ms":1}]},
             {"type":"if","condition":"${false && match.missing}","then":[{"type":"script","script_name":"wrong.json"}]},
@@ -26,16 +27,25 @@ struct WorkflowParserCheck {
         var scripts: [String] = []
         var visionKinds: [VisionKind] = []
         var touches: [Bool] = []
+        let logLock = NSLock()
+        var logs: [String] = []
         let runner = WorkflowRunner(checkCancelled: {}, script: { name, _ in scripts.append(name) },
             vision: { kind, _, parameters, _ in
                 visionKinds.append(kind)
+                if kind == .ocrText { return .string("确认") }
                 precondition(parameters["template"] == .string("button.png"))
                 return .object(["found": .bool(true), "point": .array([.number(10), .number(12)])])
-            }, touch: { _, down in touches.append(down) })
+            }, touch: { _, down in touches.append(down) }, log: {
+                logLock.lock()
+                logs.append($0)
+                logLock.unlock()
+            })
         try runner.run(workflow)
         precondition(scripts == ["child.json"])
-        precondition(visionKinds == [.templateMatch])
+        precondition(visionKinds == [.ocrText, .templateMatch])
         precondition(touches == [true, false])
+        precondition(logs.contains("[Workflow] Step: type=ocr_text, output=text, text=\("确认".debugDescription)"))
+        precondition(logs.contains("[Workflow] Condition: type=if, matched=true"))
 
         let contains = try parse(#"""
         [

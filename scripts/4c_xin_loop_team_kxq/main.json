@@ -3,7 +3,8 @@
   "vars": {
     "loop_count": 0,
     "max_loop_count": 20,
-    "battle_text": ""
+    "battle_text": "",
+    "confirm_text": ""
   },
   "steps": [
     {
@@ -17,7 +18,35 @@
         },
         {
           "type": "script",
-          "script_name": "prepare.json"
+          "script_name": "prepare_step_1.json"
+        },
+        {
+          "type": "wait",
+          "wait_ms": 1000
+        },
+        {
+          "type": "ocr_text",
+          "roi": [1936, 875, 100, 46],
+          "output": "${confirm_text}"
+        },
+        {
+          "type": "if",
+          "condition": "${confirm_text == '确认'}",
+          "then": [
+            {
+              "type": "tap",
+              "point": [1986, 898],
+              "duration_ms": 100
+            },
+            {
+              "type": "wait",
+              "wait_ms": 1000
+            }
+          ]
+        },
+        {
+          "type": "script",
+          "script_name": "prepare_step_2.json"
         },
         {
           "type": "monitor",
@@ -30,11 +59,18 @@
               "output": "${battle_text}"
             }
           ],
-          "until": "${battle_text contains '领取' || battle_text contains '明日' || battle_text contains 'BATTLE DONE'}",
+          "until": "${battle_text contains '领取' || battle_text contains '明日'}",
           "steps": [
             {
-              "type": "script",
-              "script_name": "../common/combat_role_katixiya_flow.json"
+              "type": "if",
+              "condition": "${battle_text contains '领取' || battle_text contains '明日'}",
+              "then": [],
+              "else": [
+                {
+                  "type": "script",
+                  "script_name": "../common/combat_role_katixiya_flow.json"
+                }
+              ]
             }
           ]
         },
