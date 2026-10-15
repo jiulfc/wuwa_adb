@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <title>Workflow Orchestrator</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #f5f6f8;
+      --panel: #fff;
+      --line: #d7dae0;
+      --text: #20242b;
+      --muted: #69717d;
+      --accent: #2368d8;
+      --accent-soft: #eaf1ff;
+      --danger: #b42318;
+      --shadow: 0 2px 10px #17203312;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #17191d;
+        --panel: #22252a;
+        --line: #3b3f47;
+        --text: #f1f3f5;
+        --muted: #aab0ba;
+        --accent: #75a7ff;
+        --accent-soft: #263853;
+        --danger: #ff8a80;
+        --shadow: 0 2px 10px #0005;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body { display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
+    button, textarea { font: inherit; }
+    button {
+      border: 1px solid var(--line); border-radius: 7px; padding: 6px 11px;
+      background: var(--panel); color: var(--text); cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    button:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+    .primary { color: white; background: #2368d8; border-color: #2368d8; }
+    header {
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+      border-bottom: 1px solid var(--line); background: var(--panel);
+    }
+    h1 { margin: 0; font-size: 17px; white-space: nowrap; }
+    .toolbar { display: flex; gap: 7px; flex-wrap: wrap; }
+    #status { margin-left: auto; color: var(--muted); text-align: right; min-width: 180px; }
+    #status.error { color: var(--danger); }
+    main {
+      min-height: 0; flex: 1; display: grid;
+      grid-template-columns: 260px minmax(0, 1fr); gap: 10px; padding: 10px;
+    }
+    main.json-visible { grid-template-columns: 260px minmax(360px, 1fr) minmax(340px, .9fr); }
+    .panel {
+      min-width: 0; min-height: 0; display: flex; flex-direction: column;
+      border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow);
+    }
+    .panel-title { margin: 0; padding: 11px 12px; font-size: 14px; border-bottom: 1px solid var(--line); }
+    .scroll { min-height: 0; overflow: auto; padding: 10px; }
+    .palette { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+    .palette button { padding: 8px 6px; text-align: left; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .vars { margin-top: 16px; }
+    label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
+    textarea {
+      width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 7px;
+      padding: 8px; background: var(--bg); color: var(--text);
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    #varsEditor { min-height: 112px; }
+    #jsonEditor { flex: 1; resize: none; border: 0; border-radius: 0; padding: 12px; }
+    .json-actions { display: flex; gap: 7px; padding: 9px; border-top: 1px solid var(--line); }
+    .json-panel[hidden] { display: none; }
+    #canvas { min-height: 100%; }
+    .step-list { display: flex; flex-direction: column; gap: 8px; }
+    .step {
+      border: 1px solid var(--line); border-left: 4px solid var(--step-color, var(--accent));
+      border-radius: 8px; padding: 8px; background: var(--panel);
+    }
+    .step[data-type="assign"] { --step-color: #38bdf8; }
+    .step[data-type="while"] { --step-color: #8b5cf6; }
+    .step[data-type="if"] { --step-color: #d946ef; }
+    .step[data-type="monitor"] { --step-color: #f59e0b; }
+    .step[data-type="script"] { --step-color: #3b82f6; }
+    .step[data-type="ocr_text"] { --step-color: #14b8a6; }
+    .step[data-type="template_match"] { --step-color: #22c55e; }
+    .step[data-type="skill_check"] { --step-color: #84cc16; }
+    .step[data-type="circle_percentage"] { --step-color: #06b6d4; }
+    .step[data-type="tap"] { --step-color: #ef4444; }
+    .step[data-type="wait"] { --step-color: #f97316; }
+    .step[data-type="break"] { --step-color: #e11d48; }
+    .step[data-type="continue"] { --step-color: #6366f1; }
+    .step[data-type="return"] { --step-color: #94a3b8; }
+    .step.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+    .step-head { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+    .drag-handle { cursor: grab; color: var(--muted); user-select: none; padding: 2px 5px; }
+    .step-name { font-weight: 650; }
+    .step-type { color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .step-actions { display: flex; gap: 4px; margin-left: auto; }
+    .icon { padding: 2px 7px; min-width: 27px; }
+    .delete { color: var(--danger); }
+    .step-fields[hidden] { display: none; }
+    .fields { min-height: 54px; }
+    .nested { margin: 9px 0 0 14px; padding-left: 9px; border-left: 2px solid var(--line); }
+    .nested-title { margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+    .drop-zone {
+      min-height: 40px; display: grid; place-items: center; border: 1px dashed var(--line);
+      border-radius: 7px; color: var(--muted); font-size: 12px; text-align: center; padding: 6px;
+    }
+    .drop-zone.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    @media (max-width: 1000px) {
+      main, main.json-visible { grid-template-columns: 240px minmax(0, 1fr); }
+      .json-panel { grid-column: 1 / -1; min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>v3 Workflow Orchestrator</h1>
+    <div class="toolbar" role="toolbar" aria-label="Workflow actions">
+      <button id="newButton">New</button>
+      <button id="openButton">Open…</button>
+      <button id="saveButton" class="primary">Save</button>
+      <button id="saveAsButton">Save As…</button>
+      <button id="toggleJsonButton" aria-controls="jsonPanel" aria-expanded="true">Hide JSON</button>
+    </div>
+    <div id="status" role="status" aria-live="polite">Ready</div>
+  </header>
+  <main class="json-visible">
+    <aside class="panel" aria-label="Command palette">
+      <h2 class="panel-title">Commands</h2>
+      <div class="scroll">
+        <p class="hint">Drag to the canvas or a nested area, or click to add at the top level.</p>
+        <div id="palette" class="palette"></div>
+        <div class="vars">
+          <label for="varsEditor">Variables (JSON object)</label>
+          <textarea id="varsEditor" spellcheck="false"></textarea>
+          <button id="applyVarsButton">Apply variables</button>
+        </div>
+      </div>
+    </aside>
+    <section class="panel" aria-labelledby="canvasTitle">
+      <h2 id="canvasTitle" class="panel-title">Visual Steps</h2>
+      <div class="scroll"><div id="canvas"></div></div>
+    </section>
+    <section id="jsonPanel" class="panel json-panel" aria-labelledby="jsonTitle">
+      <h2 id="jsonTitle" class="panel-title">JSON DSL</h2>
+      <label for="jsonEditor" style="position:absolute;left:-10000px">Complete v3 JSON</label>
+      <textarea id="jsonEditor" spellcheck="false"></textarea>
+      <div class="json-actions">
+        <button id="applyJsonButton">Apply to canvas</button>
+        <button id="formatButton">Format</button>
+        <button id="validateButton">Validate</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    'use strict';
+
+    const templates = {
+      assign: { type: 'assign', target: '${counter}', value: '${counter + 1}' },
+      while: { type: 'while', condition: '${counter < 1}', steps: [] },
+      if: { type: 'if', condition: true, then: [], else: [] },
+      monitor: { type: 'monitor', interval_ms: 500, timeout_ms: 30000, check: [], until: true, steps: [] },
+      script: { type: 'script', script_name: 'child.json' },
+      ocr_text: { type: 'ocr_text', roi: [0, 0, 100, 100], output: '${text}' },
+      template_match: { type: 'template_match', roi: [0, 0, 100, 100], template: 'button.png', threshold: 0.8, output: '${result}' },
+      skill_check: { type: 'skill_check', roi: [0, 0, 100, 100], model: 'model.onnx', skill: 'skill', threshold: 0.8, output: '${result}' },
+      circle_percentage: { type: 'circle_percentage', roi: [0, 0, 100, 100], profile: 'default', output: '${result}' },
+      tap: { type: 'tap', point: [100, 100], duration_ms: 100 },
+      wait: { type: 'wait', wait_ms: 500 },
+      break: { type: 'break' },
+      continue: { type: 'continue' },
+      return: { type: 'return' }
+    };
+    const titles = {
+      assign: 'Assignment', while: 'Loop', if: 'Condition', monitor: 'Monitor', script: 'Subflow',
+      ocr_text: 'OCR Text', template_match: 'Template Match', skill_check: 'Skill Check',
+      circle_percentage: 'Circle Percentage', tap: 'Tap', wait: 'Wait', break: 'Break',
+      continue: 'Continue', return: 'Return'
+    };
+    const nestedKeys = { while: ['steps'], if: ['then', 'else'], monitor: ['check', 'steps'] };
+    const nestedTitles = { steps: 'Steps', then: 'Then', else: 'Else', check: 'Check' };
+
+    function copy(value) { return JSON.parse(JSON.stringify(value)); }
+    function newDocument() {
+      return { version: 3, vars: { counter: 0, text: '', result: null }, steps: [] };
+    }
+    function cloneTemplate(type) { return copy(templates[type]); }
+
+    // Fail early if the visual palette drifts away from the v3 parser command set.
+    const expectedKinds = ['assign', 'while', 'if', 'monitor', 'script', 'ocr_text', 'template_match',
+      'skill_check', 'circle_percentage', 'tap', 'wait', 'break', 'continue', 'return'];
+    if (expectedKinds.some(kind => !templates[kind]) || Object.keys(templates).length !== expectedKinds.length) {
+      throw new Error('v3 command palette is incomplete');
+    }
+    const copyCheck = cloneTemplate('while');
+    copyCheck.steps.push(cloneTemplate('wait'));
+    if (templates.while.steps.length !== 0) throw new Error('command templates share mutable state');
+
+    let workflow = newDocument();
+    let dragState = null;
+    let dirty = false;
+    const palette = document.getElementById('palette');
+    const canvas = document.getElementById('canvas');
+    const varsEditor = document.getElementById('varsEditor');
+    const jsonEditor = document.getElementById('jsonEditor');
+    const jsonPanel = document.getElementById('jsonPanel');
+    const status = document.getElementById('status');
+
+    function nativeMessage(action, extra = {}) {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.orchestration) {
+        window.webkit.messageHandlers.orchestration.postMessage({ action, ...extra });
+      } else {
+        showStatus('File operations are only available in the Adb Quick app.', true);
+      }
+    }
+
+    function showStatus(text, isError = false) {
+      status.textContent = text;
+      status.classList.toggle('error', Boolean(isError));
+    }
+
+    function renderPalette() {
+      for (const type of expectedKinds) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = type;
+        button.title = `${titles[type]}: drag or click to add`;
+        button.draggable = true;
+        button.addEventListener('dragstart', event => {
+          dragState = { kind: 'palette', type };
+          event.dataTransfer.effectAllowed = 'copy';
+          event.dataTransfer.setData('text/plain', type);
+        });
+        button.addEventListener('dragend', () => { dragState = null; clearDropMarks(); });
+        button.addEventListener('click', () => {
+          workflow.steps.push(cloneTemplate(type));
+          dirty = true;
+          renderAll();
+          showStatus(`Added ${type}`);
+        });
+        palette.appendChild(button);
+      }
+    }
+
+    function renderAll() {
+      varsEditor.value = JSON.stringify(workflow.vars, null, 2);
+      canvas.replaceChildren();
+      renderList(workflow.steps, canvas);
+      jsonEditor.value = JSON.stringify(workflow, null, 2);
+    }
+
+    function renderList(list, host) {
+      const root = document.createElement('div');
+      root.className = 'step-list';
+      list.forEach((step, index) => root.appendChild(renderStep(step, list, index)));
+
+      const dropZone = document.createElement('div');
+      dropZone.className = 'drop-zone';
+      dropZone.tabIndex = 0;
+      dropZone.textContent = list.length ? 'Drop here to append a step' : 'Drop a command here';
+      dropZone.addEventListener('dragover', allowDrop);
+      dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
+      dropZone.addEventListener('drop', event => dropAt(event, list, list.length));
+      root.appendChild(dropZone);
+      host.appendChild(root);
+    }
+
+    function renderStep(step, list, index) {
+      const block = document.createElement('article');
+      block.className = 'step';
+      block.dataset.type = step.type || '';
+      block.addEventListener('dragover', event => {
+        allowDrop(event);
+        block.classList.add('drop-before');
+      });
+      block.addEventListener('dragleave', () => block.classList.remove('drop-before'));
+      block.addEventListener('drop', event => dropAt(event, list, index));
+
+      const head = document.createElement('div');
+      head.className = 'step-head';
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.textContent = '⠿';
+      handle.title = 'Drag step';
+      handle.tabIndex = 0;
+      handle.draggable = true;
+      handle.addEventListener('dragstart', event => {
+        event.stopPropagation();
+        dragState = { kind: 'step', list, index, step };
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', step.type || 'step');
+      });
+      handle.addEventListener('dragend', () => { dragState = null; clearDropMarks(); });
+
+      const name = document.createElement('span');
+      name.className = 'step-name';
+      name.textContent = titles[step.type] || 'Unknown command';
+      const type = document.createElement('span');
+      type.className = 'step-type';
+      type.textContent = step.type || '(missing type)';
+      const actions = document.createElement('div');
+      actions.className = 'step-actions';
+      actions.append(moveButton('↑', 'Move up', () => moveWithin(list, index, index - 1), index === 0));
+      actions.append(moveButton('↓', 'Move down', () => moveWithin(list, index, index + 1), index === list.length - 1));
+      const remove = moveButton('×', 'Delete', () => {
+        list.splice(index, 1);
+        dirty = true;
+        renderAll();
+      }, false);
+      remove.classList.add('delete');
+      actions.append(remove);
+      head.append(handle, name, type, actions);
+      block.appendChild(head);
+
+      const fieldLabel = document.createElement('label');
+      fieldLabel.className = 'step-fields';
+      fieldLabel.hidden = true;
+      fieldLabel.textContent = 'Parameter JSON (excluding nested steps)';
+      const fields = document.createElement('textarea');
+      fields.className = 'fields';
+      fields.spellcheck = false;
+      fields.value = JSON.stringify(stepFields(step), null, 2);
+      fields.setAttribute('aria-label', `${step.type || 'step'} parameter JSON`);
+      fields.addEventListener('change', () => applyStepFields(fields.value, step, list, index));
+      fieldLabel.appendChild(fields);
+      block.appendChild(fieldLabel);
+
+      const toggleFields = moveButton('Show', 'Show parameters', () => {
+        const show = fieldLabel.hidden;
+        fieldLabel.hidden = !show;
+        toggleFields.textContent = show ? 'Hide' : 'Show';
+        toggleFields.title = show ? 'Hide parameters' : 'Show parameters';
+        toggleFields.setAttribute('aria-label', toggleFields.title);
+        toggleFields.setAttribute('aria-expanded', String(show));
+      }, false);
+      toggleFields.setAttribute('aria-expanded', 'false');
+      actions.prepend(toggleFields);
+
+      for (const key of nestedKeys[step.type] || []) {
+        if (!Array.isArray(step[key])) step[key] = [];
+        const nested = document.createElement('section');
+        nested.className = 'nested';
+        const title = document.createElement('h3');
+        title.className = 'nested-title';
+        title.textContent = nestedTitles[key];
+        nested.appendChild(title);
+        renderList(step[key], nested);
+        block.appendChild(nested);
+      }
+      return block;
+    }
+
+    function moveButton(text, title, action, disabled) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'icon';
+      button.textContent = text;
+      button.title = title;
+      button.setAttribute('aria-label', title);
+      button.disabled = disabled;
+      button.addEventListener('click', action);
+      return button;
+    }
+
+    function stepFields(step) {
+      const result = {};
+      const children = new Set(nestedKeys[step.type] || []);
+      for (const [key, value] of Object.entries(step)) {
+        if (key !== 'type' && !children.has(key)) result[key] = value;
+      }
+      return result;
+    }
+
+    function applyStepFields(source, step, list, index) {
+      try {
+        const values = JSON.parse(source);
+        if (!values || Array.isArray(values) || typeof values !== 'object') throw new Error('Parameters must be a JSON object');
+        delete values.type;
+        const replacement = { type: step.type, ...values };
+        for (const key of nestedKeys[step.type] || []) replacement[key] = step[key] || [];
+        list[index] = replacement;
+        dirty = true;
+        renderAll();
+        showStatus(`Updated ${step.type}`);
+      } catch (error) {
+        showStatus(`Invalid parameter JSON: ${error.message}`, true);
+      }
+    }
+
+    function moveWithin(list, from, to) {
+      if (to < 0 || to >= list.length) return;
+      const [step] = list.splice(from, 1);
+      list.splice(to, 0, step);
+      dirty = true;
+      renderAll();
+    }
+
+    function allowDrop(event) {
+      if (!dragState) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.classList.add(event.currentTarget.classList.contains('step') ? 'drop-before' : 'active');
+      event.dataTransfer.dropEffect = dragState.kind === 'palette' ? 'copy' : 'move';
+    }
+
+    function dropAt(event, targetList, targetIndex) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!dragState) return;
+      if (dragState.kind === 'palette') {
+        targetList.splice(targetIndex, 0, cloneTemplate(dragState.type));
+      } else {
+        if (containsList(dragState.step, targetList)) {
+          showStatus('A step cannot be dropped into its own nested steps.', true);
+          clearDropMarks();
+          return;
+        }
+        const sourceList = dragState.list;
+        const sourceIndex = dragState.index;
+        const [step] = sourceList.splice(sourceIndex, 1);
+        if (sourceList === targetList && sourceIndex < targetIndex) targetIndex -= 1;
+        targetList.splice(targetIndex, 0, step);
+      }
+      dragState = null;
+      dirty = true;
+      renderAll();
+      showStatus('Updated step order');
+    }
+
+    function containsList(step, targetList) {
+      for (const key of nestedKeys[step.type] || []) {
+        const child = step[key];
+        if (child === targetList) return true;
+        if (Array.isArray(child) && child.some(item => containsList(item, targetList))) return true;
+      }
+      return false;
+    }
+
+    function clearDropMarks() {
+      document.querySelectorAll('.active, .drop-before').forEach(node => node.classList.remove('active', 'drop-before'));
+    }
+
+    function applyVariables() {
+      try {
+        const value = JSON.parse(varsEditor.value);
+        if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error('vars must be a JSON object');
+        workflow.vars = value;
+        dirty = true;
+        renderAll();
+        showStatus('Applied variables');
+      } catch (error) {
+        showStatus(`Invalid variables JSON: ${error.message}`, true);
+      }
+    }
+
+    function applyJSON(validate = true) {
+      try {
+        const value = JSON.parse(jsonEditor.value);
+        if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error('The root must be a JSON object');
+        if (value.version !== 3) throw new Error('version must be 3');
+        if (!value.vars || Array.isArray(value.vars) || typeof value.vars !== 'object') throw new Error('vars must be a JSON object');
+        if (!Array.isArray(value.steps)) throw new Error('steps must be an array');
+        workflow = value;
+        renderAll();
+        showStatus('Applied JSON to the canvas');
+        if (validate) nativeMessage('validate', { json: jsonEditor.value });
+        return true;
+      } catch (error) {
+        showStatus(`Invalid JSON: ${error.message}`, true);
+        return false;
+      }
+    }
+
+    function loadDocument(source) {
+      jsonEditor.value = source;
+      if (applyJSON(false)) dirty = false;
+    }
+
+    function markSaved() {
+      dirty = false;
+    }
+
+    function canDiscardChanges() {
+      return !dirty || window.confirm('The current workflow has unsaved changes.');
+    }
+
+    document.getElementById('newButton').addEventListener('click', () => {
+      if (!canDiscardChanges()) return;
+      workflow = newDocument();
+      dirty = false;
+      renderAll();
+      nativeMessage('new');
+      showStatus('Created a new workflow');
+    });
+    document.getElementById('openButton').addEventListener('click', () => {
+      if (canDiscardChanges()) nativeMessage('open');
+    });
+    document.getElementById('saveButton').addEventListener('click', () => nativeMessage('save', { json: jsonEditor.value }));
+    document.getElementById('saveAsButton').addEventListener('click', () => nativeMessage('saveAs', { json: jsonEditor.value }));
+    document.getElementById('toggleJsonButton').addEventListener('click', event => {
+      const show = jsonPanel.hidden;
+      jsonPanel.hidden = !show;
+      document.querySelector('main').classList.toggle('json-visible', show);
+      event.currentTarget.textContent = show ? 'Hide JSON' : 'Show JSON';
+      event.currentTarget.setAttribute('aria-expanded', String(show));
+    });
+    document.getElementById('applyVarsButton').addEventListener('click', applyVariables);
+    document.getElementById('applyJsonButton').addEventListener('click', () => applyJSON(true));
+    document.getElementById('formatButton').addEventListener('click', () => {
+      try {
+        jsonEditor.value = JSON.stringify(JSON.parse(jsonEditor.value), null, 2);
+        dirty = true;
+        showStatus('Formatted JSON');
+      } catch (error) { showStatus(`Invalid JSON: ${error.message}`, true); }
+    });
+    document.getElementById('validateButton').addEventListener('click', () => nativeMessage('validate', { json: jsonEditor.value }));
+    varsEditor.addEventListener('input', () => { dirty = true; });
+    jsonEditor.addEventListener('input', () => { dirty = true; });
+
+    renderPalette();
+    renderAll();
+  </script>
+</body>
+</html>
