@@ -46,11 +46,14 @@ struct WorkflowRunner {
         case .conditional(let condition, let yes, let no):
             return try execute(conditionResult("if", condition, variables.snapshot()) ? yes : no,
                                variables: variables, check: check)
-        case .monitor(let interval, let timeout, let checkSteps, let until, let body):
-            return try monitor(interval: try milliseconds(interval, variables.snapshot(), minimum: 1),
-                               timeout: try milliseconds(timeout, variables.snapshot(), minimum: 1),
-                               checkSteps: checkSteps, until: until, body: body,
-                               variables: variables, parentCheck: check)
+        case .runFor(let duration, let body):
+            return try runFor(duration: try milliseconds(duration, variables.snapshot(), minimum: 1),
+                              body: body, variables: variables, parentCheck: check)
+        case .runUntil(let interval, let timeout, let checkSteps, let until, let body):
+            return try runUntil(interval: try milliseconds(interval, variables.snapshot(), minimum: 1),
+                                timeout: try milliseconds(timeout, variables.snapshot(), minimum: 1),
+                                checkSteps: checkSteps, until: until, body: body,
+                                variables: variables, parentCheck: check)
         case .script(let name):
             let name = try string(name, variables.snapshot())
             guard !name.isEmpty else { throw replayError("script_name 不能为空。") }
@@ -96,22 +99,44 @@ struct WorkflowRunner {
         return .none
     }
 
-    private func monitor(interval: Int, timeout: Int, checkSteps: [Step], until: Input,
-                         body: [Step], variables: WorkflowVariables,
-                         parentCheck: @escaping WorkflowCancellationCheck) throws -> WorkflowSignal {
+    private func runFor(duration: Int, body: [Step], variables: WorkflowVariables,
+                        parentCheck: @escaping WorkflowCancellationCheck) throws -> WorkflowSignal {
+        let deadline = DispatchTime.now().uptimeNanoseconds + nanoseconds(duration)
+        let cancellation = WorkflowConcurrentCancellation(deadline: deadline, timeoutMessage: nil)
+        let scopedCheck = { try cancellation.check(parent: parentCheck) }
+        let state = startConcurrent(body: body, variables: variables, check: scopedCheck)
+        do {
+            while true {
+                if let result = state.result {
+                    cancellation.cancel()
+                    do { return try result.get() }
+                    catch is WorkflowRunForComplete { return .none }
+                }
+                try scopedCheck()
+                state.wait(nanoseconds: 50_000_000)
+            }
+        } catch is WorkflowRunForComplete {
+            cancellation.cancel()
+            try waitForStoppedBody(state, ignoringDeadline: true)
+            return .none
+        } catch {
+            cancellation.cancel()
+            try? waitForStoppedBody(state)
+            throw error
+        }
+    }
+
+    private func runUntil(interval: Int, timeout: Int, checkSteps: [Step], until: Input,
+                          body: [Step], variables: WorkflowVariables,
+                          parentCheck: @escaping WorkflowCancellationCheck) throws -> WorkflowSignal {
         let deadline = DispatchTime.now().uptimeNanoseconds + nanoseconds(timeout)
-        let cancellation = WorkflowMonitorCancellation(deadline: deadline)
+        let cancellation = WorkflowConcurrentCancellation(deadline: deadline, timeoutMessage: "run_until 超时。")
         let scopedCheck = { try cancellation.check(parent: parentCheck) }
 
         _ = try execute(checkSteps, variables: variables, check: scopedCheck)
-        if try conditionResult("monitor", until, variables.snapshot()) { return .none }
+        if try conditionResult("run_until", until, variables.snapshot()) { return .none }
 
-        let state = WorkflowMonitorState()
-        let work = WorkflowMonitorWork(runner: self, body: body, variables: variables, check: scopedCheck)
-        DispatchQueue.global(qos: .userInitiated).async {
-            do { state.finish(.success(try work.runner.execute(work.body, variables: work.variables, check: work.check))) }
-            catch { state.finish(.failure(error)) }
-        }
+        let state = startConcurrent(body: body, variables: variables, check: scopedCheck)
 
         var nextCheck = DispatchTime.now().uptimeNanoseconds + nanoseconds(interval)
         do {
@@ -127,7 +152,7 @@ struct WorkflowRunner {
 
                 _ = try execute(checkSteps, variables: variables, check: scopedCheck)
                 if let result = state.result { cancellation.cancel(); return try result.get() }
-                let matched = try conditionResult("monitor", until, variables.snapshot())
+                let matched = try conditionResult("run_until", until, variables.snapshot())
                 if let result = state.result { cancellation.cancel(); return try result.get() }
                 if matched {
                     cancellation.cancel()
@@ -144,9 +169,23 @@ struct WorkflowRunner {
         }
     }
 
-    private func waitForStoppedBody(_ state: WorkflowMonitorState) throws {
+    private func startConcurrent(body: [Step], variables: WorkflowVariables,
+                                 check: @escaping WorkflowCancellationCheck) -> WorkflowConcurrentState {
+        let state = WorkflowConcurrentState()
+        let work = WorkflowConcurrentWork(runner: self, body: body, variables: variables, check: check)
+        DispatchQueue.global(qos: .userInitiated).async {
+            do { state.finish(.success(try work.runner.execute(work.body, variables: work.variables, check: work.check))) }
+            catch { state.finish(.failure(error)) }
+        }
+        return state
+    }
+
+    private func waitForStoppedBody(_ state: WorkflowConcurrentState, ignoringDeadline: Bool = false) throws {
         while state.result == nil { state.wait(nanoseconds: 50_000_000) }
-        if case .failure(let error)? = state.result, !(error is WorkflowMonitorStopped) { throw error }
+        if case .failure(let error)? = state.result,
+           !(error is WorkflowConcurrentStopped), !(ignoringDeadline && error is WorkflowRunForComplete) {
+            throw error
+        }
     }
 
     private func wait(milliseconds: Int, check: WorkflowCancellationCheck) throws {
@@ -305,7 +344,7 @@ private enum WorkflowSignal: Equatable {
     case none, breakLoop, continueLoop, returnFromScript
 }
 
-private struct WorkflowMonitorWork: @unchecked Sendable {
+private struct WorkflowConcurrentWork: @unchecked Sendable {
     let runner: WorkflowRunner
     let body: [Step]
     let variables: WorkflowVariables
@@ -331,14 +370,19 @@ private final class WorkflowVariables: @unchecked Sendable {
     }
 }
 
-private struct WorkflowMonitorStopped: Error {}
+private struct WorkflowConcurrentStopped: Error {}
+private struct WorkflowRunForComplete: Error {}
 
-private final class WorkflowMonitorCancellation: @unchecked Sendable {
+private final class WorkflowConcurrentCancellation: @unchecked Sendable {
     private let lock = NSLock()
     private let deadline: UInt64
+    private let timeoutMessage: String?
     private var stopped = false
 
-    init(deadline: UInt64) { self.deadline = deadline }
+    init(deadline: UInt64, timeoutMessage: String?) {
+        self.deadline = deadline
+        self.timeoutMessage = timeoutMessage
+    }
 
     func cancel() {
         lock.lock()
@@ -351,12 +395,15 @@ private final class WorkflowMonitorCancellation: @unchecked Sendable {
         lock.lock()
         let stopped = self.stopped
         lock.unlock()
-        if stopped { throw WorkflowMonitorStopped() }
-        if DispatchTime.now().uptimeNanoseconds >= deadline { throw replayError("monitor 超时。") }
+        if stopped { throw WorkflowConcurrentStopped() }
+        if DispatchTime.now().uptimeNanoseconds >= deadline {
+            if let timeoutMessage { throw replayError(timeoutMessage) }
+            throw WorkflowRunForComplete()
+        }
     }
 }
 
-private final class WorkflowMonitorState: @unchecked Sendable {
+private final class WorkflowConcurrentState: @unchecked Sendable {
     private let lock = NSLock()
     private let changed = DispatchSemaphore(value: 0)
     private var stored: Result<WorkflowSignal, Error>?

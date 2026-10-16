@@ -129,7 +129,7 @@
     .step[data-type="assign"] { --step-color: #38bdf8; }
     .step[data-type="while"] { --step-color: #8b5cf6; }
     .step[data-type="if"] { --step-color: #d946ef; }
-    .step[data-type="monitor"] { --step-color: #f59e0b; }
+    .step[data-type="run_for"], .step[data-type="run_until"] { --step-color: #f59e0b; }
     .step[data-type="script"] { --step-color: #3b82f6; }
     .step[data-type="ocr_text"] { --step-color: #14b8a6; }
     .step[data-type="template_match"] { --step-color: #22c55e; }
@@ -263,7 +263,8 @@
       assign: { type: 'assign', target: '${counter}', value: '${counter + 1}' },
       while: { type: 'while', condition: '${counter < 1}', steps: [] },
       if: { type: 'if', condition: true, then: [], else: [] },
-      monitor: { type: 'monitor', interval_ms: 500, timeout_ms: 30000, check: [], until: true, steps: [] },
+      run_for: { type: 'run_for', duration_ms: 16000, steps: [] },
+      run_until: { type: 'run_until', check_every_ms: 500, timeout_ms: 30000, check: [], until: true, steps: [] },
       script: { type: 'script', script_name: 'child.json' },
       ocr_text: { type: 'ocr_text', roi: [0, 0, 100, 100], output: '${text}' },
       template_match: { type: 'template_match', roi: [0, 0, 100, 100], template: 'button.png', threshold: 0.8, output: '${result}' },
@@ -276,12 +277,12 @@
       return: { type: 'return' }
     };
     const titles = {
-      assign: 'Assignment', while: 'Loop', if: 'Condition', monitor: 'Monitor', script: 'Subflow',
+      assign: 'Assignment', while: 'Loop', if: 'Condition', run_for: 'Run For', run_until: 'Run Until', script: 'Subflow',
       ocr_text: 'OCR Text', template_match: 'Template Match', skill_check: 'Skill Check',
       circle_percentage: 'Circle Percentage', tap: 'Tap', wait: 'Wait', break: 'Break',
       continue: 'Continue', return: 'Return'
     };
-    const nestedKeys = { while: ['steps'], if: ['then', 'else'], monitor: ['check', 'steps'] };
+    const nestedKeys = { while: ['steps'], if: ['then', 'else'], run_for: ['steps'], run_until: ['steps', 'check'] };
     const nestedTitles = { steps: 'Steps', then: 'Then', else: 'Else', check: 'Check' };
 
     function copy(value) { return JSON.parse(JSON.stringify(value)); }
@@ -291,7 +292,7 @@
     function cloneTemplate(type) { return copy(templates[type]); }
 
     // Fail early if the visual palette drifts away from the v3 parser command set.
-    const expectedKinds = ['assign', 'while', 'if', 'monitor', 'script', 'ocr_text', 'template_match',
+    const expectedKinds = ['assign', 'while', 'if', 'run_for', 'run_until', 'script', 'ocr_text', 'template_match',
       'skill_check', 'circle_percentage', 'tap', 'wait', 'break', 'continue', 'return'];
     if (expectedKinds.some(kind => !templates[kind]) || Object.keys(templates).length !== expectedKinds.length) {
       throw new Error('v3 command palette is incomplete');

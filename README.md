@@ -90,11 +90,11 @@ open AdbQuick.app          # 或双击 .app
 }
 ```
 
-DSL 回放支持 `assign`、`while`、`if`、`monitor`、`script`、`tap`、`drag`、`wait`、`break`、`continue`、`return` 和受限表达式。`vars` 可以保存 JSON 数组，ROI、点位等字段可直接使用 `"${roi}"` 引用。`ocr_text` 默认返回字符串；`output` 使用 `${name:int}` 或 `${name:double}` 时，会把去除首尾空白的完整 OCR 结果解析为数字，空值或非数字会终止流程。
+DSL 回放支持 `assign`、`while`、`if`、`run_for`、`run_until`、`script`、`tap`、`drag`、`wait`、`break`、`continue`、`return` 和受限表达式。`run_for` 在 `duration_ms` 后取消其 `steps` 并继续；`run_until` 运行 `steps`，同时每隔 `check_every_ms` 执行 `check`，`until` 匹配后取消 `steps` 并继续，达到 `timeout_ms` 则报错。`vars` 可以保存 JSON 数组，ROI、点位等字段可直接使用 `"${roi}"` 引用。`ocr_text` 默认返回字符串；`output` 使用 `${name:int}` 或 `${name:double}` 时，会把去除首尾空白的完整 OCR 结果解析为数字，空值或非数字会终止流程。
 
 所有 version 3 文件的顶层、DSL 步骤、`run` 对象条目和录制事件都可以添加可选字符串 `label` 作为注释。`label` 不影响执行。
 
-子脚本路径相对于引用文件，变量在每个 DSL 文件内局部生效；monitor 会取消并等待已结束的分支。坐标使用当前设备方向下的像素坐标。`drag` 的 `from` / `to` 是起止像素坐标，`duration_ms` 是移到终点后的持续时间；完成、取消或出错都会释放触摸。
+子脚本路径相对于引用文件，变量在每个 DSL 文件内局部生效；`run_for` / `run_until` 会取消并等待已结束的分支。坐标使用当前设备方向下的像素坐标。`drag` 的 `from` / `to` 是起止像素坐标，`duration_ms` 是移到终点后的持续时间；完成、取消或出错都会释放触摸。
 
 当前设备适配器实现了 `ocr_text` 和 `skill_check`。`skill_check` 使用设置中的 `wuwa_classify` 项目，当前要求 `model: "default"` 和 `threshold: 0`；`template_match` 与 `circle_percentage` 仍会明确报错。
 
@@ -102,13 +102,13 @@ DSL 回放支持 `assign`、`while`、`if`、`monitor`、`script`、`tap`、`dra
 
 现有主流程 `scripts/4c_xin_loop_team_kxq/main.json` 本身是 DSL，按顺序执行 prepare → combat DSL → pickup DSL → finish，共 20 轮。`script` 可引用 v3 录制脚本、DSL 或 `run` 顺序流程；路径相对于引用文件。
 
-`run` 流程仍支持 `script_loop_count`、字符串文件名和 `{"id":"combat","name":"combat.json"}` 条目。`id` 在同一流程内必须非空且唯一；省略时使用 `step_1`、`step_2` 等位置标识。`interval`、`steps`、`stop_when` 和 `when` 已移除，对应逻辑用 DSL `while` / `monitor` 表达。
+`run` 流程仍支持 `script_loop_count`、字符串文件名和 `{"id":"combat","name":"combat.json"}` 条目。`id` 在同一流程内必须非空且唯一；省略时使用 `step_1`、`step_2` 等位置标识。`interval`、`steps`、`stop_when` 和 `when` 已移除，对应逻辑用 DSL `while` / `run_until` 表达。
 
 所有引用文件在发送任何操作前递归读取并验证；缺失文件、未知版本、循环引用（含符号链接）或超过 64 层的嵌套会拒绝整次回放。错误和手动取消会终止整个流程并释放触摸。
 
 ### combat DSL
 
-`scripts/common/combat_role_*.json` 是可直接执行的 v3 DSL。技能 ROI 和点位保存在数组变量中，每轮按角色优先级执行 `skill_check`，只点击第一个 `state == "usable"` 的技能。最多执行 200 轮，每轮后等待 500 ms；外层 `monitor` 匹配结束文字时会取消 combat 脚本。
+`scripts/common/combat_role_*.json` 是可直接执行的 v3 DSL。技能 ROI 和点位保存在数组变量中，每轮按角色优先级执行 `skill_check`，只点击第一个 `state == "usable"` 的技能。最多执行 200 轮，每轮后等待 500 ms；外层 `run_until` 匹配结束文字时会取消 combat 脚本。
 
 `combat_role_katixiya_optimize_1.json` 按 `A → A → A → 重击 A → E → A` 执行；任一连招步骤检查为不可用时，从第一个 A 重新开始。每轮还会独立检查 S，可用时点击，不可用时忽略且不重置连招。`vars` 中的 `lock_tap_ms`、`s_tap_ms`、`a_1_tap_ms` 到 `a_4_tap_ms`、`heavy_a_tap_ms` 和 `e_tap_ms` 可分别调整每一步的按压时间。
 

@@ -19,8 +19,8 @@
           "script_name": "prepare.json"
         },
         {
-          "type": "monitor",
-          "interval_ms": 500,
+          "type": "run_until",
+          "check_every_ms": 500,
           "timeout_ms": 30000,
           "until": "${stop_text contains '已' || stop_text contains '清'}",
           "check": [

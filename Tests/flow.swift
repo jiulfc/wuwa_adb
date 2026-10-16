@@ -104,12 +104,57 @@ struct FlowCheck {
               case .recording(let prepare) = try LoadedScript.load(from: fixtures.appendingPathComponent("4c_xin_loop_team_kxq/prepare.json")),
               case .workflow(let pickup) = try LoadedScript.load(from: fixtures.appendingPathComponent("4c_xin_loop_team_kxq/pickup.json")),
               case .workflow(let katixiya) = try LoadedScript.load(from: fixtures.appendingPathComponent("common/combat_role_katixiya.json")),
-              case .workflow(let qianxiao) = try LoadedScript.load(from: fixtures.appendingPathComponent("common/combat_role_qianxiao.json")) else {
+              case .workflow(let qianxiao) = try LoadedScript.load(from: fixtures.appendingPathComponent("common/combat_role_qianxiao.json")),
+              case .workflow(let team) = try LoadedScript.load(from: fixtures.appendingPathComponent("common/combat_team_kxq.json")) else {
             fatalError("Expected current v3 workflows")
+        }
+        for fixture in ["juluo_chaohenyantan", "juluo_qianyichendao", "juluo_sanwangfeng",
+                        "juluo_shoushidi", "juluo_suiboshi"] {
+            _ = try LoadedScript.load(from: fixtures.appendingPathComponent("\(fixture)/main.json"))
         }
         precondition(prepare.events.count == 121 && pickup.workflow.variables["phase"] == .number(0))
         precondition(katixiya.workflow.variables["e_roi"] == .array([.number(2276), .number(1188), .number(144), .number(144)]))
         precondition(qianxiao.workflow.variables["r_roi"] == .array([.number(2124), .number(1084), .number(120), .number(120)]))
+        precondition(team.workflow.variables["switch_role_point"] == .array([.number(2870), .number(360)]))
+        guard case .whileLoop(_, let teamSteps) = team.workflow.steps.first else { fatalError("Missing team loop") }
+        precondition(teamSteps.count == 6)
+        guard case .runFor(let katDuration, let katBody) = teamSteps[0],
+              case .script(let katScript) = katBody.first,
+              case .tap = teamSteps[1], case .wait = teamSteps[2],
+              case .runFor(let qianDuration, let qianBody) = teamSteps[3],
+              case .script(let qianScript) = qianBody.first,
+              case .tap = teamSteps[4], case .wait = teamSteps[5] else {
+            fatalError("Invalid team combat rotation")
+        }
+        let roleDuration: Input = .literal(.number(16000))
+        precondition(katDuration == roleDuration && qianDuration == roleDuration)
+        precondition(katScript == .literal(.string("combat_role_katixiya.json")) &&
+                     qianScript == .literal(.string("combat_role_qianxiao.json")))
+
+        func fast(_ step: Step) -> Step {
+            switch step {
+            case .whileLoop(let condition, let steps):
+                return .whileLoop(condition: condition, steps: steps.map(fast))
+            case .conditional(let condition, let yes, let no):
+                return .conditional(condition: condition, then: yes.map(fast), otherwise: no.map(fast))
+            case .tap(let point, _): return .tap(point: point, duration: .literal(.number(1)))
+            case .wait: return .wait(milliseconds: .literal(.number(0)))
+            default: return step
+            }
+        }
+        var qianxiaoVariables = qianxiao.workflow.variables
+        qianxiaoVariables["max_cycles"] = .number(7)
+        let qianxiaoCheck = Workflow(version: 3, variables: qianxiaoVariables,
+                                     steps: qianxiao.workflow.steps.map(fast))
+        var qianxiaoSkills: [String] = []
+        let qianxiaoRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in }, vision: { _, _, parameters, _ in
+            guard case .string(let skill) = parameters["skill"] else { fatalError("Missing Qianxiao skill") }
+            qianxiaoSkills.append(skill)
+            return .object(["state": .string("usable"), "point": .array([.number(1), .number(1)])])
+        }, touch: { _, _ in }, log: { _ in })
+        try qianxiaoRunner.run(qianxiaoCheck)
+        precondition(qianxiaoSkills == ["S", "R", "S", "E", "S", "A", "S", "A",
+                                       "S", "A", "S", "A", "S", "A"])
 
         print("V3 recordings, DSL fixtures, nested flows, cancellation, errors, and cycles passed")
     }

@@ -64,8 +64,8 @@
           "label": "start"
         },
         {
-          "type": "monitor",
-          "interval_ms": 500,
+          "type": "run_until",
+          "check_every_ms": 500,
           "timeout_ms": 300000,
           "check": [
             {

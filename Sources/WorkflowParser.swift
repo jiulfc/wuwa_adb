@@ -75,8 +75,8 @@ private struct Validator {
             try steps(obj[name]!, at: path + "." + name, loops: loopDepth ?? loops,
                       inCheck: check ?? inCheck, depth: depth + 1)
         }
-        if inCheck && ["tap", "drag", "script", "monitor", "wait", "return"].contains(type) {
-            throw fail(path, "'\(type)' is not allowed in a monitor check")
+        if inCheck && ["tap", "drag", "script", "run_for", "run_until", "wait", "return"].contains(type) {
+            throw fail(path, "'\(type)' is not allowed in a run_until check")
         }
         switch type {
         case "assign":
@@ -90,16 +90,20 @@ private struct Validator {
             try schema(["condition", "then"], ["else"])
             return .conditional(condition: try condition(input("condition"), at: path + ".condition"),
                                 then: try body("then"), otherwise: try obj["else"] == nil ? [] : body("else"))
-        case "monitor":
-            try schema(["interval_ms", "timeout_ms", "check", "until", "steps"])
-            let interval = try number(input("interval_ms"), at: path + ".interval_ms", minimum: 1, integer: true)
+        case "run_for":
+            try schema(["duration_ms", "steps"])
+            return .runFor(duration: try number(input("duration_ms"), at: path + ".duration_ms", minimum: 1, integer: true),
+                           steps: try body("steps"))
+        case "run_until":
+            try schema(["check_every_ms", "timeout_ms", "check", "until", "steps"])
+            let interval = try number(input("check_every_ms"), at: path + ".check_every_ms", minimum: 1, integer: true)
             let timeout = try number(input("timeout_ms"), at: path + ".timeout_ms", minimum: 1, integer: true)
             let check = try body("check", loopDepth: 0, check: true)
             let main = try body("steps")
             let overlap = writes(check).intersection(writes(main))
             guard overlap.isEmpty else { throw fail(path, "Check and body both write: \(overlap.sorted().joined(separator: ", "))") }
-            return .monitor(interval: interval, timeout: timeout, check: check,
-                            until: try condition(input("until"), at: path + ".until"), steps: main)
+            return .runUntil(checkEvery: interval, timeout: timeout, check: check,
+                             until: try condition(input("until"), at: path + ".until"), steps: main)
         case "script":
             try schema(["script_name"])
             return .script(name: try string(input("script_name"), at: path + ".script_name"))
@@ -299,7 +303,8 @@ private struct Validator {
             case .vision(let v): result.insert(v.output)
             case .whileLoop(_, let body): result.formUnion(writes(body))
             case .conditional(_, let yes, let no): result.formUnion(writes(yes)); result.formUnion(writes(no))
-            case .monitor(_, _, let check, _, let body): result.formUnion(writes(check)); result.formUnion(writes(body))
+            case .runFor(_, let body): result.formUnion(writes(body))
+            case .runUntil(_, _, let check, _, let body): result.formUnion(writes(check)); result.formUnion(writes(body))
             default: break
             }
         }

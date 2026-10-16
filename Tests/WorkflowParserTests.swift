@@ -94,9 +94,9 @@ struct WorkflowParserCheck {
         try runner.run(contains)
         precondition(scripts == ["child.json", "contains.json"])
 
-        let monitor = try parse(#"""
+        let runUntil = try parse(#"""
         [
-            {"type":"monitor","interval_ms":5,"timeout_ms":500,
+            {"type":"run_until","check_every_ms":5,"timeout_ms":500,
              "check":[
                 {"type":"assign","target":"${n}","value":"${n + 1}"},
                 {"type":"if","condition":"${n >= 2}","then":[{"type":"assign","target":"${match}","value":true}]}
@@ -105,10 +105,17 @@ struct WorkflowParserCheck {
              "steps":[{"type":"while","condition":true,"steps":[{"type":"wait","wait_ms":20}]}]}
         ]
         """#)
-        try runner.run(monitor)
-        let timeout = try parse(#"[{"type":"monitor","interval_ms":5,"timeout_ms":20,"check":[],"until":false,"steps":[{"type":"while","condition":true,"steps":[{"type":"wait","wait_ms":5}]}]}]"#)
-        do { try runner.run(timeout); fatalError("monitor timeout was ignored") }
-        catch { precondition(error.localizedDescription.contains("monitor 超时")) }
+        try runner.run(runUntil)
+        let timeout = try parse(#"[{"type":"run_until","check_every_ms":5,"timeout_ms":20,"check":[],"until":false,"steps":[{"type":"while","condition":true,"steps":[{"type":"wait","wait_ms":5}]}]}]"#)
+        do { try runner.run(timeout); fatalError("run_until timeout was ignored") }
+        catch { precondition(error.localizedDescription.contains("run_until 超时")) }
+
+        let runFor = try parse(#"[{"type":"run_for","duration_ms":20,"steps":[{"type":"tap","point":[1,2],"duration_ms":200}]}]"#)
+        var runForTouches: [WorkflowTouchAction] = []
+        let runForRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in },
+            vision: { _, _, _, _ in .null }, touch: { _, action in runForTouches.append(action) }, log: { _ in })
+        try runForRunner.run(runFor)
+        precondition(runForTouches == [.down, .up])
 
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -142,7 +149,8 @@ struct WorkflowParserCheck {
         rejects(#"[{"type":"if","condition":"${1 contains '1'}","then":[]}]"#, containing: "Expected string")
         rejects(#"[{"type":"break"}]"#, containing: "enclosing loop")
         rejects(#"[{"type":"continue"}]"#, containing: "enclosing loop")
-        rejects(#"[{"type":"monitor","interval_ms":500,"timeout_ms":1000,"check":[{"type":"ocr_text","roi":[0,0,10,10],"output":"${text}"}],"until":false,"steps":[{"type":"assign","target":"${text}","value":"x"}]}]"#, containing: "both write: text")
+        rejects(#"[{"type":"run_until","check_every_ms":500,"timeout_ms":1000,"check":[{"type":"ocr_text","roi":[0,0,10,10],"output":"${text}"}],"until":false,"steps":[{"type":"assign","target":"${text}","value":"x"}]}]"#, containing: "both write: text")
+        rejects(#"[{"type":"monitor","interval_ms":500,"timeout_ms":1000,"check":[],"until":false,"steps":[]}]"#, containing: "Unknown command")
         rejects(#"[{"type":"wait","wait_ms":1,"typo":true}]"#, containing: "Unknown field")
         rejects(#"[{"type":"wait","label":1,"wait_ms":1}]"#, containing: "Expected a string")
         rejects(#"[{"type":"wait"}]"#, containing: "Missing required field")
@@ -182,6 +190,6 @@ struct WorkflowParserCheck {
         }
         precondition(loaded.file == file.standardizedFileURL.resolvingSymlinksInPath())
 
-        print("V3 DSL parsing, dispatch, expressions, control flow, monitor cancellation, vision callbacks, and replay passed")
+        print("V3 DSL parsing, dispatch, expressions, timed cancellation, vision callbacks, and replay passed")
     }
 }

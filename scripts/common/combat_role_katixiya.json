@@ -12,7 +12,7 @@
     "s_tap_ms": 100,
     "a_1_tap_ms": 100,
     "a_2_tap_ms": 100,
-    "a_3_tap_ms": 500,
+    "a_3_tap_ms": 100,
     "heavy_a_tap_ms": 1200,
     "e_tap_ms": 100,
     "a_4_tap_ms": 100,

@@ -10,7 +10,7 @@ struct FlowScript: Decodable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         _ = try values.decodeIfPresent(String.self, forKey: .label)
         guard !values.contains(.stop_when) else {
-            throw replayError("stop_when 已移除，请使用 DSL monitor。")
+            throw replayError("stop_when 已移除，请使用 DSL run_until。")
         }
         version = try values.decode(Int.self, forKey: .version)
         script_loop_count = try values.decodeIfPresent(Int.self, forKey: .script_loop_count)

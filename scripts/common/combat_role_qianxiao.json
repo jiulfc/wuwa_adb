@@ -1,9 +1,10 @@
 {
   "version": 3,
+  "label": "opportunistic S, R -> E->A,A,A,A, Heavy A",
   "vars": {
     "cycle": 0,
     "max_cycles": 200,
-    "used": false,
+    "combo_step": 0,
     "skill_state": null,
     "lock_point": [955, 1220],
     "r_roi": [2124, 1084, 120, 120],
@@ -14,100 +15,175 @@
   "steps": [
     {
       "type": "while",
+      "label": "Run at most 200 combo actions",
       "condition": "${cycle < max_cycles}",
       "steps": [
         {
           "type": "if",
+          "label": "Tap Lock every 5 seconds",
           "condition": "${cycle % 10 == 0}",
           "then": [
-            {"type": "tap", "point": "${lock_point}", "duration_ms": 100}
-          ]
+            { "type": "tap", "point": "${lock_point}", "duration_ms": 100 }
+          ],
+          "else": []
         },
-        {"type": "assign", "target": "${used}", "value": false},
         {
           "type": "skill_check",
-          "roi": "${r_roi}",
+          "label": "Check S usable",
+          "roi": "${s_roi}",
           "model": "default",
-          "skill": "R",
+          "skill": "S",
           "threshold": 0,
           "output": "${skill_state}"
         },
         {
           "type": "if",
+          "label": "Use S without changing the combo",
           "condition": "${skill_state.state == 'usable'}",
           "then": [
-            {"type": "tap", "point": "${skill_state.point}", "duration_ms": 100},
-            {"type": "assign", "target": "${used}", "value": true}
-          ]
+            {
+              "type": "tap",
+              "point": "${skill_state.point}",
+              "duration_ms": 100
+            }
+          ],
+          "else": []
         },
         {
           "type": "if",
-          "condition": "${!used}",
+          "label": "R at combo step 0",
+          "condition": "${combo_step == 0}",
           "then": [
             {
               "type": "skill_check",
-              "roi": "${e_roi}",
+              "label": "Check R usable",
+              "roi": "${r_roi}",
               "model": "default",
-              "skill": "E",
+              "skill": "R",
               "threshold": 0,
               "output": "${skill_state}"
             },
             {
               "type": "if",
+              "label": "Use R or restart",
               "condition": "${skill_state.state == 'usable'}",
               "then": [
-                {"type": "tap", "point": "${skill_state.point}", "duration_ms": 100},
-                {"type": "assign", "target": "${used}", "value": true}
+                {
+                  "type": "tap",
+                  "point": "${skill_state.point}",
+                  "duration_ms": 100
+                },
+                { "type": "assign", "target": "${combo_step}", "value": 1 }
+              ],
+              "else": [
+                {
+                  "type": "assign",
+                  "label": "Restart combo",
+                  "target": "${combo_step}",
+                  "value": 0
+                }
               ]
             }
-          ]
-        },
-        {
-          "type": "if",
-          "condition": "${!used}",
-          "then": [
-            {
-              "type": "skill_check",
-              "roi": "${s_roi}",
-              "model": "default",
-              "skill": "S",
-              "threshold": 0,
-              "output": "${skill_state}"
-            },
+          ],
+          "else": [
             {
               "type": "if",
-              "condition": "${skill_state.state == 'usable'}",
+              "label": "E at combo step 1",
+              "condition": "${combo_step == 1}",
               "then": [
-                {"type": "tap", "point": "${skill_state.point}", "duration_ms": 100},
-                {"type": "assign", "target": "${used}", "value": true}
+                {
+                  "type": "skill_check",
+                  "label": "Check E usable",
+                  "roi": "${e_roi}",
+                  "model": "default",
+                  "skill": "E",
+                  "threshold": 0,
+                  "output": "${skill_state}"
+                },
+                {
+                  "type": "if",
+                  "label": "Use E or restart",
+                  "condition": "${skill_state.state == 'usable'}",
+                  "then": [
+                    {
+                      "type": "tap",
+                      "point": "${skill_state.point}",
+                      "duration_ms": 100
+                    },
+                    { "type": "assign", "target": "${combo_step}", "value": 2 }
+                  ],
+                  "else": [
+                    {
+                      "type": "assign",
+                      "label": "Restart combo",
+                      "target": "${combo_step}",
+                      "value": 0
+                    }
+                  ]
+                }
+              ],
+              "else": [
+                {
+                  "type": "skill_check",
+                  "label": "Check A / Heavy A usable",
+                  "roi": "${a_roi}",
+                  "model": "default",
+                  "skill": "A",
+                  "threshold": 0,
+                  "output": "${skill_state}"
+                },
+                {
+                  "type": "if",
+                  "label": "Use A or restart",
+                  "condition": "${skill_state.state == 'usable'}",
+                  "then": [
+                    {
+                      "type": "if",
+                      "label": "A at combo steps 2 through 5",
+                      "condition": "${combo_step < 6}",
+                      "then": [
+                        {
+                          "type": "tap",
+                          "point": "${skill_state.point}",
+                          "duration_ms": 100
+                        },
+                        {
+                          "type": "assign",
+                          "target": "${combo_step}",
+                          "value": "${combo_step + 1}"
+                        }
+                      ],
+                      "else": [
+                        {
+                          "type": "tap",
+                          "label": "Heavy A at combo step 6",
+                          "point": "${skill_state.point}",
+                          "duration_ms": 1200
+                        },
+                        {
+                          "type": "assign",
+                          "label": "Combo complete",
+                          "target": "${combo_step}",
+                          "value": 0
+                        }
+                      ]
+                    }
+                  ],
+                  "else": [
+                    {
+                      "type": "assign",
+                      "label": "Restart combo",
+                      "target": "${combo_step}",
+                      "value": 0
+                    }
+                  ]
+                }
               ]
             }
           ]
         },
-        {
-          "type": "if",
-          "condition": "${!used}",
-          "then": [
-            {
-              "type": "skill_check",
-              "roi": "${a_roi}",
-              "model": "default",
-              "skill": "A",
-              "threshold": 0,
-              "output": "${skill_state}"
-            },
-            {
-              "type": "if",
-              "condition": "${skill_state.state == 'usable'}",
-              "then": [
-                {"type": "tap", "point": "${skill_state.point}", "duration_ms": 100},
-                {"type": "assign", "target": "${used}", "value": true}
-              ]
-            }
-          ]
-        },
-        {"type": "assign", "target": "${cycle}", "value": "${cycle + 1}"},
-        {"type": "wait", "wait_ms": 500}
+        { "type": "assign", "target": "${cycle}", "value": "${cycle + 1}" },
+        { "type": "wait", "wait_ms": 500 }
       ]
     }
   ]
