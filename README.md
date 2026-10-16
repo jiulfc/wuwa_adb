@@ -110,6 +110,8 @@ DSL 回放支持 `assign`、`while`、`if`、`monitor`、`script`、`tap`、`dra
 
 `scripts/common/combat_role_*.json` 是可直接执行的 v3 DSL。技能 ROI 和点位保存在数组变量中，每轮按角色优先级执行 `skill_check`，只点击第一个 `state == "usable"` 的技能。最多执行 200 轮，每轮后等待 500 ms；外层 `monitor` 匹配结束文字时会取消 combat 脚本。
 
+`combat_role_katixiya_optimize_1.json` 按 `A → A → A → 重击 A → E → A` 执行；任一连招步骤检查为不可用时，从第一个 A 重新开始。每轮还会独立检查 S，可用时点击，不可用时忽略且不重置连招。`vars` 中的 `lock_tap_ms`、`s_tap_ms`、`a_1_tap_ms` 到 `a_4_tap_ms`、`heavy_a_tap_ms` 和 `e_tap_ms` 可分别调整每一步的按压时间。
+
 锁定按键在第一轮和每 5 轮点击一次。shortcut: 这是基于轮数的近似定时，实际间隔为至少 2.5 秒加分类耗时；需要精确间隔时再为 DSL 增加单调时间。
 
 在设置中选择相邻的 `wuwa_classify` 项目目录（包含 `.venv/bin/python`、`live.py` 和训练好的模型）。第一次 `skill_check` 才启动分类器，每次完整回放只加载一次。模型返回的 `useable` / `not_useable` 会映射为 DSL 的 `usable` / `unusable`；响应缺失或未知分类会终止流程。

@@ -35,13 +35,13 @@
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; overflow: hidden; }
     body { display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
-    button, textarea { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     button {
       border: 1px solid var(--line); border-radius: 7px; padding: 6px 11px;
       background: var(--panel); color: var(--text); cursor: pointer;
     }
     button:hover { border-color: var(--accent); }
-    button:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
       outline: 2px solid var(--accent); outline-offset: 2px;
     }
     .primary { color: white; background: #2368d8; border-color: #2368d8; }
@@ -50,24 +50,25 @@
       border-bottom: 1px solid var(--line); background: var(--panel);
     }
     h1 { margin: 0; font-size: 17px; white-space: nowrap; }
+    .workflow-heading { min-width: 0; }
+    #workflowLabel { margin-top: 2px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .toolbar { display: flex; gap: 7px; flex-wrap: wrap; }
     #status { margin-left: auto; color: var(--muted); text-align: right; min-width: 180px; }
     #status.error { color: var(--danger); }
     main {
+      --outline-width: 260px;
       min-height: 0; flex: 1; display: grid;
-      grid-template-columns: 260px minmax(0, 1fr); gap: 10px; padding: 10px;
+      grid-template-columns: var(--outline-width) minmax(0, 1fr) 300px; gap: 10px; padding: 10px;
     }
-    main.json-visible { grid-template-columns: 260px minmax(360px, 1fr) minmax(340px, .9fr); }
+    main.resizing { cursor: col-resize; user-select: none; }
+    main.json-visible { grid-template-rows: minmax(0, 1fr) minmax(260px, .65fr); }
     .panel {
       min-width: 0; min-height: 0; display: flex; flex-direction: column;
       border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow);
     }
     .panel-title { margin: 0; padding: 11px 12px; font-size: 14px; border-bottom: 1px solid var(--line); }
     .scroll { min-height: 0; overflow: auto; padding: 10px; }
-    .palette { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
-    .palette button { padding: 8px 6px; text-align: left; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
-    .vars { margin-top: 16px; }
     label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
     textarea {
       width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 7px;
@@ -78,12 +79,53 @@
     #jsonEditor { flex: 1; resize: none; border: 0; border-radius: 0; padding: 12px; }
     .json-actions { display: flex; gap: 7px; padding: 9px; border-top: 1px solid var(--line); }
     .json-panel[hidden] { display: none; }
+    .outline-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; padding: 9px; border-bottom: 1px solid var(--line); }
+    .outline-panel { position: relative; }
+    .outline-resizer {
+      position: absolute; z-index: 2; top: 8px; right: -6px; bottom: 8px; width: 12px;
+      cursor: col-resize; touch-action: none;
+    }
+    .outline-resizer::before {
+      content: ''; position: absolute; inset: 0 auto 0 5px; width: 2px; border-radius: 2px;
+      background: transparent;
+    }
+    .outline-resizer:hover::before,
+    .outline-resizer:focus-visible::before,
+    main.resizing .outline-resizer::before { background: var(--accent); }
+    .outline-tools input, .scope-add select {
+      min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px;
+      background: var(--bg); color: var(--text);
+    }
+    .outline-list, .outline-list ul { margin: 0; padding: 0; list-style: none; }
+    .outline-list ul { margin-left: 15px; padding-left: 7px; border-left: 1px solid var(--line); }
+    .outline-row { display: flex; align-items: center; gap: 4px; min-width: 0; border-radius: 6px; }
+    .outline-row.selected { background: var(--accent-soft); }
+    .outline-disclosure, .outline-spacer { width: 24px; height: 26px; flex: 0 0 24px; padding: 0; border: 0; background: transparent; }
+    .outline-disclosure { display: inline-grid; place-items: center; }
+    .outline-disclosure svg { display: block; width: 14px; height: 14px; pointer-events: none; }
+    .outline-spacer { display: inline-block; }
+    .outline-node, .outline-branch, .outline-vars {
+      min-width: 0; flex: 1; padding: 5px 4px; border: 0; background: transparent; text-align: left;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .outline-branch { color: var(--muted); font-size: 12px; }
+    .outline-count { flex: 0 0 auto; padding-right: 5px; color: var(--muted); font-size: 11px; }
+    .outline-path { display: block; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+    .search-result { display: block; width: 100%; padding: 6px; border-radius: 6px; }
+    .search-result:hover { background: var(--accent-soft); }
+    .scope-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .breadcrumbs { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+    .breadcrumb { padding: 2px 4px; border: 0; background: transparent; white-space: nowrap; color: var(--muted); }
+    .breadcrumb:last-child { color: var(--text); font-weight: 650; overflow: hidden; text-overflow: ellipsis; }
+    .breadcrumb-separator { color: var(--muted); }
+    .scope-add { display: flex; gap: 6px; flex: 0 0 auto; }
     #canvas { min-height: 100%; }
-    .step-list { display: flex; flex-direction: column; gap: 8px; }
+    .step-list { display: flex; flex-direction: column; gap: 5px; }
     .step {
       border: 1px solid var(--line); border-left: 4px solid var(--step-color, var(--accent));
-      border-radius: 8px; padding: 8px; background: var(--panel);
+      border-radius: 7px; padding: 6px; background: var(--panel);
     }
+    .step.selected { box-shadow: 0 0 0 2px var(--accent); }
     .step[data-type="assign"] { --step-color: #38bdf8; }
     .step[data-type="while"] { --step-color: #8b5cf6; }
     .step[data-type="if"] { --step-color: #d946ef; }
@@ -99,58 +141,111 @@
     .step[data-type="continue"] { --step-color: #6366f1; }
     .step[data-type="return"] { --step-color: #94a3b8; }
     .step.drop-before { box-shadow: 0 -3px 0 var(--accent); }
-    .step-head { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
-    .drag-handle { cursor: grab; color: var(--muted); user-select: none; padding: 2px 5px; }
-    .step-name { font-weight: 650; }
-    .step-type { color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .step-actions { display: flex; gap: 4px; margin-left: auto; }
+    .step-head { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+    .step-index { width: 30px; flex: 0 0 30px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+    .drag-handle { cursor: grab; color: var(--muted); user-select: none; padding: 2px 4px; }
+    .step-summary { flex: 1; min-width: 0; }
+    .step-primary { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+    .step-label {
+      min-width: 0; flex: 0 1 auto; color: var(--text); font-size: 13px; font-weight: 650;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .step-name { flex: 0 0 auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .step-type { flex: 0 0 auto; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+    .step-branches { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+    .branch-button { padding: 3px 7px; color: var(--muted); font-size: 11px; background: var(--bg); }
+    .step-actions {
+      display: flex; gap: 4px; margin-left: auto; opacity: 0; visibility: hidden;
+      pointer-events: none; transition: opacity .12s ease;
+    }
+    .step-head:hover .step-actions,
+    .step:focus > .step-head .step-actions,
+    .step-head:focus-within .step-actions {
+      opacity: 1; visibility: visible; pointer-events: auto;
+    }
     .icon { padding: 2px 7px; min-width: 27px; }
     .delete { color: var(--danger); }
-    .step-fields[hidden] { display: none; }
-    .fields { min-height: 54px; }
-    .nested { margin: 9px 0 0 14px; padding-left: 9px; border-left: 2px solid var(--line); }
-    .nested-title { margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
     .drop-zone {
-      min-height: 40px; display: grid; place-items: center; border: 1px dashed var(--line);
+      min-height: 34px; display: grid; place-items: center; border: 1px dashed var(--line);
       border-radius: 7px; color: var(--muted); font-size: 12px; text-align: center; padding: 6px;
     }
     .drop-zone.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .inspector-step { margin-bottom: 14px; }
+    .inspector-name { font-weight: 650; }
+    .inspector-type { margin-left: 6px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .parameter-field { margin-bottom: 12px; }
+    .parameter-field label { overflow-wrap: anywhere; }
+    .parameter-control:not([type="checkbox"]) {
+      width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 7px 8px;
+      background: var(--bg); color: var(--text);
+    }
+    textarea.parameter-control { min-height: 70px; resize: vertical; }
+    [hidden] { display: none !important; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .json-panel { grid-column: 1 / -1; }
     @media (max-width: 1000px) {
-      main, main.json-visible { grid-template-columns: 240px minmax(0, 1fr); }
-      .json-panel { grid-column: 1 / -1; min-height: 300px; }
+      main { --outline-width: 220px; }
+      main, main.json-visible { grid-template-columns: var(--outline-width) minmax(300px, 1fr) 260px; }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>v3 Workflow Orchestrator</h1>
+    <div class="workflow-heading">
+      <h1>v3 Workflow Orchestrator</h1>
+      <div id="workflowLabel" hidden></div>
+    </div>
     <div class="toolbar" role="toolbar" aria-label="Workflow actions">
       <button id="newButton">New</button>
       <button id="openButton">Open…</button>
       <button id="saveButton" class="primary">Save</button>
       <button id="saveAsButton">Save As…</button>
-      <button id="toggleJsonButton" aria-controls="jsonPanel" aria-expanded="true">Hide JSON</button>
+      <button id="toggleJsonButton" aria-controls="jsonPanel" aria-expanded="false">Show JSON</button>
     </div>
     <div id="status" role="status" aria-live="polite">Ready</div>
   </header>
-  <main class="json-visible">
-    <aside class="panel" aria-label="Command palette">
-      <h2 class="panel-title">Commands</h2>
-      <div class="scroll">
-        <p class="hint">Drag to the canvas or a nested area, or click to add at the top level.</p>
-        <div id="palette" class="palette"></div>
-        <div class="vars">
+  <main>
+    <aside class="panel outline-panel" aria-labelledby="outlineTitle">
+      <h2 id="outlineTitle" class="panel-title">Flow Outline</h2>
+      <div class="outline-tools">
+        <label for="outlineSearch" class="sr-only">Find steps</label>
+        <input id="outlineSearch" type="search" placeholder="Find steps…">
+        <button id="collapseAllButton" type="button">Collapse all</button>
+      </div>
+      <div id="outlineScroll" class="scroll"><div id="outline"></div></div>
+      <div id="outlineResizer" class="outline-resizer" role="separator" aria-label="Resize Flow Outline" aria-orientation="vertical" aria-valuemin="180" aria-valuemax="600" tabindex="0"></div>
+    </aside>
+    <section class="panel" aria-labelledby="canvasTitle">
+      <div class="panel-title scope-header">
+        <nav id="breadcrumbs" class="breadcrumbs" aria-label="Current workflow scope"></nav>
+        <div class="scope-add">
+          <label for="addType" class="sr-only">Step type</label>
+          <select id="addType"></select>
+          <button id="addStepButton" type="button">Add step</button>
+        </div>
+      </div>
+      <h2 id="canvasTitle" class="sr-only">Focused Steps</h2>
+      <div id="canvasScroll" class="scroll"><div id="canvas"></div></div>
+    </section>
+    <aside class="panel" aria-labelledby="inspectorTitle">
+      <h2 id="inspectorTitle" class="panel-title">Inspector</h2>
+      <div id="inspectorScroll" class="scroll">
+        <p id="inspectorEmpty" class="hint">Select a step or Variables from the outline.</p>
+        <div id="inspectorContent" hidden>
+          <div class="inspector-step">
+            <span id="inspectorName" class="inspector-name"></span>
+            <span id="inspectorType" class="inspector-type"></span>
+          </div>
+          <form id="inspectorForm"></form>
+        </div>
+        <div id="variablesContent" hidden>
           <label for="varsEditor">Variables (JSON object)</label>
           <textarea id="varsEditor" spellcheck="false"></textarea>
-          <button id="applyVarsButton">Apply variables</button>
+          <button id="applyVarsButton" type="button">Apply variables</button>
         </div>
       </div>
     </aside>
-    <section class="panel" aria-labelledby="canvasTitle">
-      <h2 id="canvasTitle" class="panel-title">Visual Steps</h2>
-      <div class="scroll"><div id="canvas"></div></div>
-    </section>
-    <section id="jsonPanel" class="panel json-panel" aria-labelledby="jsonTitle">
+    <section id="jsonPanel" class="panel json-panel" aria-labelledby="jsonTitle" hidden>
       <h2 id="jsonTitle" class="panel-title">JSON DSL</h2>
       <label for="jsonEditor" style="position:absolute;left:-10000px">Complete v3 JSON</label>
       <textarea id="jsonEditor" spellcheck="false"></textarea>
@@ -207,13 +302,50 @@
 
     let workflow = newDocument();
     let dragState = null;
+    let selectedStep = null;
+    let inspectorMode = null;
+    let scopeStack = [];
+    let expandedSteps = new WeakSet();
     let dirty = false;
-    const palette = document.getElementById('palette');
     const canvas = document.getElementById('canvas');
+    const canvasScroll = document.getElementById('canvasScroll');
+    const outline = document.getElementById('outline');
+    const outlineScroll = document.getElementById('outlineScroll');
+    const outlineSearch = document.getElementById('outlineSearch');
+    const main = document.querySelector('main');
+    const outlinePanel = document.querySelector('.outline-panel');
+    const outlineResizer = document.getElementById('outlineResizer');
+    const breadcrumbs = document.getElementById('breadcrumbs');
+    const addType = document.getElementById('addType');
     const varsEditor = document.getElementById('varsEditor');
     const jsonEditor = document.getElementById('jsonEditor');
     const jsonPanel = document.getElementById('jsonPanel');
+    const workflowLabel = document.getElementById('workflowLabel');
+    const inspectorEmpty = document.getElementById('inspectorEmpty');
+    const inspectorContent = document.getElementById('inspectorContent');
+    const inspectorName = document.getElementById('inspectorName');
+    const inspectorType = document.getElementById('inspectorType');
+    const inspectorForm = document.getElementById('inspectorForm');
+    const variablesContent = document.getElementById('variablesContent');
     const status = document.getElementById('status');
+    let outlineResize = null;
+
+    function outlineWidthBounds() {
+      const reservedWidth = window.matchMedia('(max-width: 1000px)').matches ? 600 : 660;
+      return { min: 180, max: Math.max(180, Math.min(600, main.clientWidth - reservedWidth)) };
+    }
+
+    function setOutlineWidth(width) {
+      const bounds = outlineWidthBounds();
+      const next = Math.round(Math.max(bounds.min, Math.min(bounds.max, width)));
+      main.style.setProperty('--outline-width', `${next}px`);
+      outlineResizer.setAttribute('aria-valuemax', String(bounds.max));
+      outlineResizer.setAttribute('aria-valuenow', String(next));
+    }
+
+    function currentOutlineWidth() {
+      return outlinePanel.getBoundingClientRect().width;
+    }
 
     function nativeMessage(action, extra = {}) {
       if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.orchestration) {
@@ -228,34 +360,79 @@
       status.classList.toggle('error', Boolean(isError));
     }
 
-    function renderPalette() {
+    function renderCommandOptions() {
       for (const type of expectedKinds) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = type;
-        button.title = `${titles[type]}: drag or click to add`;
-        button.draggable = true;
-        button.addEventListener('dragstart', event => {
-          dragState = { kind: 'palette', type };
-          event.dataTransfer.effectAllowed = 'copy';
-          event.dataTransfer.setData('text/plain', type);
-        });
-        button.addEventListener('dragend', () => { dragState = null; clearDropMarks(); });
-        button.addEventListener('click', () => {
-          workflow.steps.push(cloneTemplate(type));
-          dirty = true;
-          renderAll();
-          showStatus(`Added ${type}`);
-        });
-        palette.appendChild(button);
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        addType.appendChild(option);
       }
     }
 
-    function renderAll() {
+    function resetEditorView() {
+      selectedStep = null;
+      inspectorMode = null;
+      scopeStack = [{ owner: null, key: null, list: workflow.steps }];
+      expandedSteps = new WeakSet();
+    }
+
+    function currentScope() {
+      return scopeStack[scopeStack.length - 1];
+    }
+
+    function makeScope(step, key) {
+      if (!Array.isArray(step[key])) step[key] = [];
+      return { owner: step, key, list: step[key] };
+    }
+
+    function stepTitle(step) {
+      const label = typeof step.label === 'string' ? step.label.trim() : '';
+      return label || titles[step.type] || step.type || 'Unknown command';
+    }
+
+    function scopeTitle(scope) {
+      return scope.owner ? `${stepTitle(scope.owner)} · ${nestedTitles[scope.key]}` : 'Root';
+    }
+
+    function renderAll(resetCanvas = false) {
+      const canvasTop = resetCanvas ? 0 : canvasScroll.scrollTop;
+      const outlineTop = outlineScroll.scrollTop;
+      const label = typeof workflow.label === 'string' ? workflow.label.trim() : '';
+      workflowLabel.textContent = label;
+      workflowLabel.hidden = !label;
       varsEditor.value = JSON.stringify(workflow.vars, null, 2);
+      renderBreadcrumbs();
       canvas.replaceChildren();
-      renderList(workflow.steps, canvas);
+      renderList(currentScope().list, canvas);
+      renderOutline();
+      renderInspector();
       jsonEditor.value = JSON.stringify(workflow, null, 2);
+      canvasScroll.scrollTop = canvasTop;
+      outlineScroll.scrollTop = outlineTop;
+    }
+
+    function renderBreadcrumbs() {
+      breadcrumbs.replaceChildren();
+      scopeStack.forEach((scope, index) => {
+        if (index) {
+          const separator = document.createElement('span');
+          separator.className = 'breadcrumb-separator';
+          separator.textContent = '/';
+          breadcrumbs.appendChild(separator);
+        }
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'breadcrumb';
+        button.textContent = scopeTitle(scope);
+        button.disabled = index === scopeStack.length - 1;
+        button.addEventListener('click', () => {
+          scopeStack = scopeStack.slice(0, index + 1);
+          selectedStep = null;
+          inspectorMode = null;
+          renderAll(true);
+        });
+        breadcrumbs.appendChild(button);
+      });
     }
 
     function renderList(list, host) {
@@ -266,7 +443,7 @@
       const dropZone = document.createElement('div');
       dropZone.className = 'drop-zone';
       dropZone.tabIndex = 0;
-      dropZone.textContent = list.length ? 'Drop here to append a step' : 'Drop a command here';
+      dropZone.textContent = list.length ? 'Drop here to append a step' : 'Add a step to this scope';
       dropZone.addEventListener('dragover', allowDrop);
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
       dropZone.addEventListener('drop', event => dropAt(event, list, list.length));
@@ -278,6 +455,18 @@
       const block = document.createElement('article');
       block.className = 'step';
       block.dataset.type = step.type || '';
+      block.tabIndex = 0;
+      block.classList.toggle('selected', selectedStep === step);
+      if (selectedStep === step) block.setAttribute('aria-current', 'step');
+      block.addEventListener('click', event => {
+        event.stopPropagation();
+        selectStep(step);
+      });
+      block.addEventListener('keydown', event => {
+        if (event.target !== block || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        selectStep(step);
+      });
       block.addEventListener('dragover', event => {
         allowDrop(event);
         block.classList.add('drop-before');
@@ -287,6 +476,9 @@
 
       const head = document.createElement('div');
       head.className = 'step-head';
+      const position = document.createElement('span');
+      position.className = 'step-index';
+      position.textContent = String(index + 1);
       const handle = document.createElement('span');
       handle.className = 'drag-handle';
       handle.textContent = '⠿';
@@ -307,56 +499,231 @@
       const type = document.createElement('span');
       type.className = 'step-type';
       type.textContent = step.type || '(missing type)';
+      const summary = document.createElement('div');
+      summary.className = 'step-summary';
+      const primary = document.createElement('div');
+      primary.className = 'step-primary';
+      if (typeof step.label === 'string' && step.label.trim()) {
+        const label = document.createElement('span');
+        label.className = 'step-label';
+        label.textContent = step.label.trim();
+        label.title = label.textContent;
+        primary.appendChild(label);
+      }
+      primary.append(name, type);
+      summary.appendChild(primary);
+      const branches = document.createElement('div');
+      branches.className = 'step-branches';
+      for (const key of nestedKeys[step.type] || []) {
+        const childScope = makeScope(step, key);
+        const branch = document.createElement('button');
+        branch.type = 'button';
+        branch.className = 'branch-button';
+        branch.textContent = `${nestedTitles[key]} ${childScope.list.length}`;
+        branch.addEventListener('click', event => {
+          event.stopPropagation();
+          scopeStack.push(childScope);
+          selectedStep = null;
+          inspectorMode = null;
+          renderAll(true);
+        });
+        branches.appendChild(branch);
+      }
       const actions = document.createElement('div');
       actions.className = 'step-actions';
       actions.append(moveButton('↑', 'Move up', () => moveWithin(list, index, index - 1), index === 0));
       actions.append(moveButton('↓', 'Move down', () => moveWithin(list, index, index + 1), index === list.length - 1));
       const remove = moveButton('×', 'Delete', () => {
+        if (selectedStep === step) selectedStep = null;
         list.splice(index, 1);
         dirty = true;
         renderAll();
       }, false);
       remove.classList.add('delete');
       actions.append(remove);
-      head.append(handle, name, type, actions);
+      head.append(position, handle, summary, branches, actions);
       block.appendChild(head);
-
-      const fieldLabel = document.createElement('label');
-      fieldLabel.className = 'step-fields';
-      fieldLabel.hidden = true;
-      fieldLabel.textContent = 'Parameter JSON (excluding nested steps)';
-      const fields = document.createElement('textarea');
-      fields.className = 'fields';
-      fields.spellcheck = false;
-      fields.value = JSON.stringify(stepFields(step), null, 2);
-      fields.setAttribute('aria-label', `${step.type || 'step'} parameter JSON`);
-      fields.addEventListener('change', () => applyStepFields(fields.value, step, list, index));
-      fieldLabel.appendChild(fields);
-      block.appendChild(fieldLabel);
-
-      const toggleFields = moveButton('Show', 'Show parameters', () => {
-        const show = fieldLabel.hidden;
-        fieldLabel.hidden = !show;
-        toggleFields.textContent = show ? 'Hide' : 'Show';
-        toggleFields.title = show ? 'Hide parameters' : 'Show parameters';
-        toggleFields.setAttribute('aria-label', toggleFields.title);
-        toggleFields.setAttribute('aria-expanded', String(show));
-      }, false);
-      toggleFields.setAttribute('aria-expanded', 'false');
-      actions.prepend(toggleFields);
-
-      for (const key of nestedKeys[step.type] || []) {
-        if (!Array.isArray(step[key])) step[key] = [];
-        const nested = document.createElement('section');
-        nested.className = 'nested';
-        const title = document.createElement('h3');
-        title.className = 'nested-title';
-        title.textContent = nestedTitles[key];
-        nested.appendChild(title);
-        renderList(step[key], nested);
-        block.appendChild(nested);
-      }
       return block;
+    }
+
+    function renderOutline() {
+      outline.replaceChildren();
+      const query = outlineSearch.value.trim().toLowerCase();
+      if (query) {
+        const results = [];
+        collectSearchResults(workflow.steps, [scopeStack[0]], results, query);
+        if (!results.length) {
+          const empty = document.createElement('p');
+          empty.className = 'hint';
+          empty.textContent = 'No matching steps.';
+          outline.appendChild(empty);
+          return;
+        }
+        for (const result of results) outline.appendChild(renderSearchResult(result));
+        return;
+      }
+
+      const tree = document.createElement('ul');
+      tree.className = 'outline-list';
+      const variables = document.createElement('li');
+      const variablesRow = document.createElement('div');
+      variablesRow.className = 'outline-row';
+      variablesRow.classList.toggle('selected', inspectorMode === 'variables');
+      const spacer = document.createElement('span');
+      spacer.className = 'outline-spacer';
+      const variablesButton = document.createElement('button');
+      variablesButton.type = 'button';
+      variablesButton.className = 'outline-vars';
+      variablesButton.textContent = 'Variables';
+      variablesButton.addEventListener('click', () => {
+        selectedStep = null;
+        inspectorMode = 'variables';
+        renderAll();
+      });
+      variablesRow.append(spacer, variablesButton);
+      variables.appendChild(variablesRow);
+      tree.appendChild(variables);
+      renderOutlineList(workflow.steps, tree, [scopeStack[0]]);
+      outline.appendChild(tree);
+    }
+
+    function renderOutlineList(list, host, scopes) {
+      list.forEach(step => {
+        const item = document.createElement('li');
+        const row = document.createElement('div');
+        row.className = 'outline-row';
+        row.classList.toggle('selected', selectedStep === step);
+        const keys = nestedKeys[step.type] || [];
+        if (keys.length) {
+          const disclosure = document.createElement('button');
+          disclosure.type = 'button';
+          disclosure.className = 'outline-disclosure';
+          setDisclosureIcon(disclosure, expandedSteps.has(step));
+          disclosure.title = expandedSteps.has(step) ? 'Collapse branches' : 'Expand branches';
+          disclosure.setAttribute('aria-label', disclosure.title);
+          disclosure.setAttribute('aria-expanded', String(expandedSteps.has(step)));
+          disclosure.addEventListener('click', () => {
+            if (expandedSteps.has(step)) expandedSteps.delete(step);
+            else expandedSteps.add(step);
+            renderOutline();
+          });
+          row.appendChild(disclosure);
+        } else {
+          const spacer = document.createElement('span');
+          spacer.className = 'outline-spacer';
+          row.appendChild(spacer);
+        }
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'outline-node';
+        button.textContent = stepTitle(step);
+        button.title = step.type || 'Unknown command';
+        button.addEventListener('click', () => {
+          scopeStack = scopes.slice();
+          selectedStep = step;
+          inspectorMode = 'step';
+          renderAll(true);
+        });
+        row.appendChild(button);
+        const count = descendantCount(step);
+        if (count) {
+          const badge = document.createElement('span');
+          badge.className = 'outline-count';
+          badge.textContent = String(count);
+          badge.title = `${count} nested step${count === 1 ? '' : 's'}`;
+          row.appendChild(badge);
+        }
+        item.appendChild(row);
+
+        if (keys.length && expandedSteps.has(step)) {
+          const branches = document.createElement('ul');
+          for (const key of keys) {
+            const childScope = makeScope(step, key);
+            const branchItem = document.createElement('li');
+            const branchRow = document.createElement('div');
+            branchRow.className = 'outline-row';
+            branchRow.classList.toggle('selected', currentScope().list === childScope.list);
+            const branchSpacer = document.createElement('span');
+            branchSpacer.className = 'outline-spacer';
+            const branchButton = document.createElement('button');
+            branchButton.type = 'button';
+            branchButton.className = 'outline-branch';
+            branchButton.textContent = `${nestedTitles[key]} (${childScope.list.length})`;
+            const childScopes = [...scopes, childScope];
+            branchButton.addEventListener('click', () => {
+              scopeStack = childScopes;
+              selectedStep = null;
+              inspectorMode = null;
+              renderAll(true);
+            });
+            branchRow.append(branchSpacer, branchButton);
+            branchItem.appendChild(branchRow);
+            if (childScope.list.length) {
+              const childList = document.createElement('ul');
+              renderOutlineList(childScope.list, childList, childScopes);
+              branchItem.appendChild(childList);
+            }
+            branches.appendChild(branchItem);
+          }
+          item.appendChild(branches);
+        }
+        host.appendChild(item);
+      });
+    }
+
+    function descendantCount(step) {
+      let count = 0;
+      for (const key of nestedKeys[step.type] || []) {
+        const children = Array.isArray(step[key]) ? step[key] : [];
+        count += children.length;
+        for (const child of children) count += descendantCount(child);
+      }
+      return count;
+    }
+
+    function collectSearchResults(list, scopes, results, query) {
+      for (const step of list) {
+        const searchable = `${step.type || ''} ${stepTitle(step)} ${JSON.stringify(stepFields(step))}`.toLowerCase();
+        if (searchable.includes(query)) results.push({ step, scopes: scopes.slice() });
+        for (const key of nestedKeys[step.type] || []) {
+          const childScope = makeScope(step, key);
+          collectSearchResults(childScope.list, [...scopes, childScope], results, query);
+        }
+      }
+    }
+
+    function renderSearchResult(result) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'outline-node search-result';
+      button.append(document.createTextNode(stepTitle(result.step)));
+      const path = document.createElement('span');
+      path.className = 'outline-path';
+      path.textContent = result.scopes.map(scopeTitle).join(' / ');
+      button.appendChild(path);
+      button.addEventListener('click', () => {
+        for (const scope of result.scopes) if (scope.owner) expandedSteps.add(scope.owner);
+        scopeStack = result.scopes;
+        selectedStep = result.step;
+        inspectorMode = 'step';
+        renderAll(true);
+      });
+      return button;
+    }
+
+    function setDisclosureIcon(button, expanded) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
+      svg.setAttribute('aria-hidden', 'true');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', expanded ? 'm6 9 6 6 6-6' : 'm9 18 6-6-6-6');
+      svg.appendChild(path);
+      button.replaceChildren(svg);
     }
 
     function moveButton(text, title, action, disabled) {
@@ -367,7 +734,10 @@
       button.title = title;
       button.setAttribute('aria-label', title);
       button.disabled = disabled;
-      button.addEventListener('click', action);
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        action();
+      });
       return button;
     }
 
@@ -380,20 +750,101 @@
       return result;
     }
 
-    function applyStepFields(source, step, list, index) {
+    function selectStep(step) {
+      selectedStep = step;
+      inspectorMode = 'step';
+      renderAll();
+    }
+
+    function renderInspector() {
+      inspectorForm.replaceChildren();
+      const showStep = inspectorMode === 'step' && Boolean(selectedStep);
+      const showVariables = inspectorMode === 'variables';
+      inspectorEmpty.hidden = showStep || showVariables;
+      inspectorContent.hidden = !showStep;
+      variablesContent.hidden = !showVariables;
+      if (!showStep) return;
+
+      inspectorName.textContent = titles[selectedStep.type] || 'Unknown command';
+      inspectorType.textContent = selectedStep.type || '(missing type)';
+      const fields = stepFields(selectedStep);
+      const entries = Object.entries(fields);
+      if (!Object.prototype.hasOwnProperty.call(fields, 'label')) entries.unshift(['label', '']);
+
+      entries.forEach(([key, value], index) => {
+        const field = document.createElement('div');
+        field.className = 'parameter-field';
+        const label = document.createElement('label');
+        const control = createParameterControl(value);
+        control.id = `parameter-${index}`;
+        control.classList.add('parameter-control');
+        label.htmlFor = control.id;
+        label.textContent = key;
+        control.addEventListener('change', () => updateParameter(key, value, control));
+        field.append(label, control);
+        inspectorForm.appendChild(field);
+      });
+    }
+
+    function createParameterControl(value) {
+      if (typeof value === 'boolean') {
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = value;
+        return input;
+      }
+      if (Array.isArray(value) || (value !== null && typeof value === 'object') || value === null) {
+        const textarea = document.createElement('textarea');
+        textarea.spellcheck = false;
+        textarea.value = JSON.stringify(value, null, 2);
+        return textarea;
+      }
+      const input = document.createElement('input');
+      input.type = typeof value === 'number' ? 'number' : 'text';
+      if (typeof value === 'number') input.step = 'any';
+      input.value = String(value);
+      return input;
+    }
+
+    function readParameterValue(control, original) {
+      if (typeof original === 'boolean') return control.checked;
+      if (typeof original === 'number') {
+        const value = Number(control.value);
+        if (!control.value.trim() || !Number.isFinite(value)) throw new Error('Enter a valid number');
+        return value;
+      }
+      if (typeof original === 'string') return control.value;
+      const value = JSON.parse(control.value);
+      if (Array.isArray(original) && !Array.isArray(value)) throw new Error('Enter a JSON array');
+      if (!Array.isArray(original) && original !== null && typeof original === 'object' &&
+          (!value || Array.isArray(value) || typeof value !== 'object')) {
+        throw new Error('Enter a JSON object');
+      }
+      return value;
+    }
+
+    function updateParameter(key, original, control) {
       try {
-        const values = JSON.parse(source);
-        if (!values || Array.isArray(values) || typeof values !== 'object') throw new Error('Parameters must be a JSON object');
-        delete values.type;
-        const replacement = { type: step.type, ...values };
-        for (const key of nestedKeys[step.type] || []) replacement[key] = step[key] || [];
-        list[index] = replacement;
+        const value = readParameterValue(control, original);
+        if (key === 'label' && typeof value === 'string' && !value.trim()) delete selectedStep.label;
+        else selectedStep[key] = value;
         dirty = true;
         renderAll();
-        showStatus(`Updated ${step.type}`);
+        showStatus(`Updated ${selectedStep.type}`);
       } catch (error) {
-        showStatus(`Invalid parameter JSON: ${error.message}`, true);
+        showStatus(`Invalid ${key}: ${error.message}`, true);
       }
+    }
+
+    function addStep() {
+      const step = cloneTemplate(addType.value);
+      currentScope().list.push(step);
+      selectedStep = step;
+      inspectorMode = 'step';
+      dirty = true;
+      renderAll();
+      canvasScroll.scrollTop = canvasScroll.scrollHeight;
+      showStatus(`Added ${step.type}`);
     }
 
     function moveWithin(list, from, to) {
@@ -409,40 +860,26 @@
       event.preventDefault();
       event.stopPropagation();
       event.currentTarget.classList.add(event.currentTarget.classList.contains('step') ? 'drop-before' : 'active');
-      event.dataTransfer.dropEffect = dragState.kind === 'palette' ? 'copy' : 'move';
+      event.dataTransfer.dropEffect = 'move';
     }
 
     function dropAt(event, targetList, targetIndex) {
       event.preventDefault();
       event.stopPropagation();
       if (!dragState) return;
-      if (dragState.kind === 'palette') {
-        targetList.splice(targetIndex, 0, cloneTemplate(dragState.type));
-      } else {
-        if (containsList(dragState.step, targetList)) {
-          showStatus('A step cannot be dropped into its own nested steps.', true);
-          clearDropMarks();
-          return;
-        }
-        const sourceList = dragState.list;
-        const sourceIndex = dragState.index;
-        const [step] = sourceList.splice(sourceIndex, 1);
-        if (sourceList === targetList && sourceIndex < targetIndex) targetIndex -= 1;
-        targetList.splice(targetIndex, 0, step);
+      if (dragState.list !== targetList) {
+        showStatus('Drag reordering stays within the current scope.', true);
+        clearDropMarks();
+        return;
       }
+      const sourceIndex = dragState.index;
+      const [step] = targetList.splice(sourceIndex, 1);
+      if (sourceIndex < targetIndex) targetIndex -= 1;
+      targetList.splice(targetIndex, 0, step);
       dragState = null;
       dirty = true;
       renderAll();
       showStatus('Updated step order');
-    }
-
-    function containsList(step, targetList) {
-      for (const key of nestedKeys[step.type] || []) {
-        const child = step[key];
-        if (child === targetList) return true;
-        if (Array.isArray(child) && child.some(item => containsList(item, targetList))) return true;
-      }
-      return false;
     }
 
     function clearDropMarks() {
@@ -470,8 +907,9 @@
         if (!value.vars || Array.isArray(value.vars) || typeof value.vars !== 'object') throw new Error('vars must be a JSON object');
         if (!Array.isArray(value.steps)) throw new Error('steps must be an array');
         workflow = value;
-        renderAll();
-        showStatus('Applied JSON to the canvas');
+        resetEditorView();
+        renderAll(true);
+        showStatus('Applied JSON to the editor');
         if (validate) nativeMessage('validate', { json: jsonEditor.value });
         return true;
       } catch (error) {
@@ -496,8 +934,9 @@
     document.getElementById('newButton').addEventListener('click', () => {
       if (!canDiscardChanges()) return;
       workflow = newDocument();
+      resetEditorView();
       dirty = false;
-      renderAll();
+      renderAll(true);
       nativeMessage('new');
       showStatus('Created a new workflow');
     });
@@ -513,6 +952,35 @@
       event.currentTarget.textContent = show ? 'Hide JSON' : 'Show JSON';
       event.currentTarget.setAttribute('aria-expanded', String(show));
     });
+    document.getElementById('addStepButton').addEventListener('click', addStep);
+    document.getElementById('collapseAllButton').addEventListener('click', () => {
+      expandedSteps = new WeakSet();
+      renderOutline();
+    });
+    outlineResizer.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      outlineResize = { x: event.clientX, width: currentOutlineWidth() };
+      main.classList.add('resizing');
+      outlineResizer.setPointerCapture(event.pointerId);
+    });
+    outlineResizer.addEventListener('pointermove', event => {
+      if (outlineResize) setOutlineWidth(outlineResize.width + event.clientX - outlineResize.x);
+    });
+    function finishOutlineResize() {
+      outlineResize = null;
+      main.classList.remove('resizing');
+    }
+    outlineResizer.addEventListener('pointerup', finishOutlineResize);
+    outlineResizer.addEventListener('pointercancel', finishOutlineResize);
+    outlineResizer.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      setOutlineWidth(currentOutlineWidth() + (event.key === 'ArrowLeft' ? -20 : 20));
+    });
+    window.addEventListener('resize', () => {
+      if (main.style.getPropertyValue('--outline-width')) setOutlineWidth(currentOutlineWidth());
+    });
+    outlineSearch.addEventListener('input', renderOutline);
     document.getElementById('applyVarsButton').addEventListener('click', applyVariables);
     document.getElementById('applyJsonButton').addEventListener('click', () => applyJSON(true));
     document.getElementById('formatButton').addEventListener('click', () => {
@@ -525,9 +993,22 @@
     document.getElementById('validateButton').addEventListener('click', () => nativeMessage('validate', { json: jsonEditor.value }));
     varsEditor.addEventListener('input', () => { dirty = true; });
     jsonEditor.addEventListener('input', () => { dirty = true; });
+    inspectorForm.addEventListener('submit', event => event.preventDefault());
 
-    renderPalette();
+    if (readParameterValue({ value: '2.5' }, 1) !== 2.5 ||
+        !Array.isArray(readParameterValue({ value: '[1, 2]' }, []))) {
+      throw new Error('parameter form does not preserve JSON value types');
+    }
+    const scopeCheck = cloneTemplate('if');
+    scopeCheck.then.push(cloneTemplate('tap'));
+    if (descendantCount(scopeCheck) !== 1 || makeScope(scopeCheck, 'then').list[0].type !== 'tap') {
+      throw new Error('focused scope navigation is inconsistent');
+    }
+
+    renderCommandOptions();
+    resetEditorView();
     renderAll();
+    outlineResizer.setAttribute('aria-valuenow', String(Math.round(currentOutlineWidth())));
   </script>
 </body>
 </html>

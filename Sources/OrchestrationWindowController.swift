@@ -2,7 +2,7 @@ import AppKit
 import UniformTypeIdentifiers
 import WebKit
 
-/// v3 流程的本地网页编排器。文件读写和 DSL 校验留在原生侧。
+/// Local web orchestrator for v3 workflows; native code owns file I/O and DSL validation.
 final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKUIDelegate {
     private let window: NSWindow
     private let webView: WKWebView
@@ -21,7 +21,7 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
 
         contentController.add(self, name: "orchestration")
         webView.uiDelegate = self
-        window.title = "流程编排器 — 未命名"
+        window.title = "Workflow Orchestrator — Untitled"
         window.minSize = NSSize(width: 880, height: 600)
         window.isReleasedWhenClosed = false
         webView.translatesAutoresizingMaskIntoConstraints = false
@@ -52,7 +52,7 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
         switch action {
         case "new":
             fileURL = nil
-            window.title = "流程编排器 — 未命名"
+            window.title = "Workflow Orchestrator — Untitled"
         case "open":
             openFlow()
         case "save", "saveAs":
@@ -71,7 +71,7 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
         let executableDirectory = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
         let source = executableDirectory.appendingPathComponent("assets/orchestration.html")
         guard let url = bundled ?? (FileManager.default.fileExists(atPath: source.path) ? source : nil) else {
-            report("找不到流程编排器网页资源。", alert: true)
+            report("Workflow orchestrator web resource was not found.", alert: true)
             return
         }
         loaded = true
@@ -80,7 +80,7 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
 
     private func openFlow() {
         let panel = NSOpenPanel()
-        panel.title = "打开 v3 流程"
+        panel.title = "Open v3 Workflow"
         panel.allowedContentTypes = [.json]
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -98,11 +98,11 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
                     throw CocoaError(.fileReadInapplicableStringEncoding)
                 }
                 self.fileURL = url
-                self.window.title = "流程编排器 — \(url.lastPathComponent)"
+                self.window.title = "Workflow Orchestrator — \(url.lastPathComponent)"
                 self.call("loadDocument", arguments: [source])
-                self.report("已打开 \(url.lastPathComponent)")
+                self.report("Opened \(url.lastPathComponent)")
             } catch {
-                self.report("无法打开流程：\(error.localizedDescription)", alert: true)
+                self.report("Unable to open workflow: \(error.localizedDescription)", alert: true)
             }
         }
     }
@@ -112,7 +112,7 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
         do {
             _ = try WorkflowParser().parse(data)
         } catch {
-            report("保存前校验失败：\(error.localizedDescription)", alert: true)
+            report("Validation before save failed: \(error.localizedDescription)", alert: true)
             return
         }
 
@@ -122,7 +122,7 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
         }
 
         let panel = NSSavePanel()
-        panel.title = "保存 v3 流程"
+        panel.title = "Save v3 Workflow"
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = fileURL?.lastPathComponent ?? "workflow.json"
         panel.beginSheetModal(for: window) { [weak self] response in
@@ -135,20 +135,20 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
         do {
             try data.write(to: url, options: .atomic)
             fileURL = url
-            window.title = "流程编排器 — \(url.lastPathComponent)"
+            window.title = "Workflow Orchestrator — \(url.lastPathComponent)"
             call("markSaved", arguments: [])
-            report("已保存 \(url.lastPathComponent)")
+            report("Saved \(url.lastPathComponent)")
         } catch {
-            report("保存失败：\(error.localizedDescription)", alert: true)
+            report("Save failed: \(error.localizedDescription)", alert: true)
         }
     }
 
     private func validate(_ source: String) {
         do {
             let workflow = try WorkflowParser().parse(Data(source.utf8))
-            report("v3 流程有效：\(workflow.steps.count) 个顶层步骤")
+            report("Valid v3 workflow: \(workflow.steps.count) top-level step(s)")
         } catch {
-            report("校验失败：\(error.localizedDescription)")
+            report("Validation failed: \(error.localizedDescription)")
         }
     }
 
@@ -157,7 +157,7 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
         guard alert else { return }
         let warning = NSAlert()
         warning.alertStyle = .warning
-        warning.messageText = "流程编排器"
+        warning.messageText = "Workflow Orchestrator"
         warning.informativeText = text
         warning.beginSheetModal(for: window)
     }
@@ -173,10 +173,10 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         let warning = NSAlert()
         warning.alertStyle = .warning
-        warning.messageText = "放弃未保存的更改？"
+        warning.messageText = "Discard unsaved changes?"
         warning.informativeText = message
-        warning.addButton(withTitle: "放弃更改")
-        warning.addButton(withTitle: "取消")
+        warning.addButton(withTitle: "Discard Changes")
+        warning.addButton(withTitle: "Cancel")
         warning.beginSheetModal(for: window) { response in
             completionHandler(response == .alertFirstButtonReturn)
         }
