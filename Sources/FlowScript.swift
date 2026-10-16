@@ -1,106 +1,16 @@
 import Foundation
 
-struct BattleScript: Decodable {
-    struct LockEnemy: Decodable {
-        let button: String
-        let interval: Double
-    }
-
-    let deviceWidth: Int32
-    let deviceHeight: Int32
-    let priority: [String]
-    let regions: [String: [Double]]
-    let lock_enemy: LockEnemy?
-
-    func validate() throws {
-        guard deviceWidth > 0, deviceHeight > 0 else {
-            throw replayError("battle 需要正数 deviceWidth / deviceHeight。")
-        }
-        guard !priority.isEmpty, Set(priority).count == priority.count,
-              priority.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
-            throw replayError("battle 需要非空且不重复的 priority。")
-        }
-        for skill in priority {
-            guard regions[skill] != nil else { throw replayError("缺少技能区域：\(skill)") }
-        }
-        if let lock_enemy {
-            guard !lock_enemy.button.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  regions[lock_enemy.button] != nil,
-                  lock_enemy.interval.isFinite, lock_enemy.interval > 0, lock_enemy.interval < 1e9 else {
-                throw replayError("lock_enemy 需要 regions 中存在的 button 和正数 interval。")
-            }
-        }
-        for (button, region) in regions {
-            guard region.count == 4, region.allSatisfy(\.isFinite),
-                  region[0] >= 0, region[1] >= 0, region[2] > 0, region[3] > 0,
-                  region[0] + region[2] <= Double(deviceWidth),
-                  region[1] + region[3] <= Double(deviceHeight) else {
-                throw replayError("按键区域超出 deviceWidth / deviceHeight：\(button)")
-            }
-        }
-    }
-
-    func normalizedRegion(_ region: [Double]) -> [Double] {
-        [region[0] / Double(deviceWidth), region[1] / Double(deviceHeight),
-         region[2] / Double(deviceWidth), region[3] / Double(deviceHeight)]
-    }
-
-    func selectedSkill(labels: [String: String]) throws -> String? {
-        guard priority.allSatisfy({ labels[$0] == "useable" || labels[$0] == "not_useable" }) else {
-            throw replayError("分类器返回了缺失或未知的技能分类。")
-        }
-        return priority.first { labels[$0] == "useable" }
-    }
-}
-
-struct FlowStopCondition: Decodable {
-    let match: Match
-    let check_interval: Double
-
-    struct Match: Decodable {
-        let type: String
-        let text: [String]
-        let text_regions: [[Double]]
-    }
-
-    private enum CodingKeys: String, CodingKey { case match, check_interval }
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        match = try values.decode(Match.self, forKey: .match)
-        check_interval = try values.decodeIfPresent(Double.self, forKey: .check_interval) ?? 0.5
-    }
-
-    func validate() throws {
-        guard match.type == "text_any", !match.text_regions.isEmpty,
-              check_interval.isFinite, check_interval > 0, check_interval < 1e9 else {
-            throw replayError("stop_when 需要 match.type=text_any、非空 text_regions 和正数 check_interval。")
-        }
-        for region in match.text_regions { try TextStopCondition(text: match.text, region: region).validate() }
-    }
-}
-
-struct PickupScript: Decodable {
-    let deviceWidth: Int32
-    let deviceHeight: Int32
-    let pickup_text: PickupTextCondition
-    let movement: PickupMovement
-
-    func validate() throws {
-        try pickup_text.validate(deviceWidth: deviceWidth, deviceHeight: deviceHeight)
-        try movement.validate()
-    }
-}
-
 struct FlowScript: Decodable {
     let version: Int
     let script_loop_count: Int?
     let run: [Entry]
 
-    private enum CodingKeys: String, CodingKey { case version, script_loop_count, run, stop_when }
+    private enum CodingKeys: String, CodingKey { case version, script_loop_count, run, stop_when, label }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        _ = try values.decodeIfPresent(String.self, forKey: .label)
         guard !values.contains(.stop_when) else {
-            throw replayError("请将 stop_when 移到 run 的 battle 条目内。")
+            throw replayError("stop_when 已移除，请使用 DSL monitor。")
         }
         version = try values.decode(Int.self, forKey: .version)
         script_loop_count = try values.decodeIfPresent(Int.self, forKey: .script_loop_count)
@@ -109,28 +19,23 @@ struct FlowScript: Decodable {
 
     struct Entry: Decodable {
         let name: String
-        let interval: Double?
-        let steps: Int?
         let id: String?
-        let stop_when: FlowStopCondition?
 
-        private enum CodingKeys: String, CodingKey { case name, interval, steps, id, when, stop_when }
+        private enum CodingKeys: String, CodingKey { case name, interval, steps, id, when, stop_when, label }
         init(from decoder: Decoder) throws {
             if let name = try? decoder.singleValueContainer().decode(String.self) {
                 self.name = name
-                interval = nil
-                steps = nil
                 id = nil
-                stop_when = nil
             } else {
                 let values = try decoder.container(keyedBy: CodingKeys.self)
+                _ = try values.decodeIfPresent(String.self, forKey: .label)
                 name = try values.decode(String.self, forKey: .name)
-                interval = try values.decodeIfPresent(Double.self, forKey: .interval)
-                steps = try values.decodeIfPresent(Int.self, forKey: .steps)
                 id = try values.decodeIfPresent(String.self, forKey: .id)
-                stop_when = try values.decodeIfPresent(FlowStopCondition.self, forKey: .stop_when)
                 guard !values.contains(.when) else {
                     throw replayError("run 不再支持 when；条目按顺序执行，请移除 when。")
+                }
+                guard !values.contains(.interval), !values.contains(.steps), !values.contains(.stop_when) else {
+                    throw replayError("interval / steps / stop_when 已移除，请使用 DSL。")
                 }
             }
         }
@@ -145,25 +50,16 @@ struct LoadedWorkflow {
 indirect enum LoadedScript {
     case recording(Script)
     case flow(loops: Int, entries: [LoadedEntry])
-    case battle(BattleScript)
-    case pickup(PickupScript)
     case workflow(LoadedWorkflow)
 
     struct LoadedEntry {
         let script: LoadedScript
         let name: String
-        let interval: Double
-        let steps: Int
         let id: String
-        let stop: FlowStopCondition?
     }
 
     static func load(from url: URL) throws -> LoadedScript {
-        let script = try load(from: url, ancestors: [])
-        switch script {
-        case .recording, .flow, .workflow: return script
-        default: throw replayError("请选择 version=3 录制脚本或流程；battle/pickup 配置须通过流程引用。")
-        }
+        try load(from: url, ancestors: [])
     }
 
     private static func load(from url: URL, ancestors: Set<URL>) throws -> LoadedScript {
@@ -189,14 +85,8 @@ indirect enum LoadedScript {
                 return .recording(try Script.decode(from: data))
             }
             switch header.type {
-            case "battle":
-                let battle = try JSONDecoder().decode(BattleScript.self, from: data)
-                try battle.validate()
-                return .battle(battle)
-            case "pickup":
-                let pickup = try JSONDecoder().decode(PickupScript.self, from: data)
-                try pickup.validate()
-                return .pickup(pickup)
+            case "battle": throw replayError("battle 请使用 vars / steps DSL。")
+            case "pickup": throw replayError("pickup 请使用 vars / steps DSL。")
             case .some(let type): throw replayError("未知 type：\(type)")
             case nil: break
             }
@@ -212,19 +102,9 @@ indirect enum LoadedScript {
                       ids.insert(id).inserted else {
                     throw replayError("run 需要非空 name / id，且同一流程内 id 不能重复。")
                 }
-                try entry.stop_when?.validate()
                 let childURL = URL(fileURLWithPath: entry.name, relativeTo: file.deletingLastPathComponent())
                 let child = try load(from: childURL, ancestors: ancestors.union([file]))
-                let interval = entry.interval ?? 0.5
-                let steps = entry.steps ?? 200
-                guard interval.isFinite, interval > 0, interval < 1e9, steps > 0 else {
-                    throw replayError("run 的 interval 需要正数，steps 需要正整数。")
-                }
-                if case .battle = child { } else if entry.interval != nil || entry.steps != nil || entry.stop_when != nil {
-                    throw replayError("interval / steps / stop_when 仅用于 battle：\(entry.name)")
-                }
-                return LoadedEntry(script: child, name: childURL.lastPathComponent, interval: interval, steps: steps,
-                                   id: id, stop: entry.stop_when)
+                return LoadedEntry(script: child, name: childURL.lastPathComponent, id: id)
             }
             return .flow(loops: flow.script_loop_count ?? 1, entries: entries)
         } catch {
@@ -237,21 +117,16 @@ indirect enum LoadedScript {
 struct FlowRunner {
     let checkCancelled: () throws -> Void
     let recording: (Script) throws -> Void
-    let battle: (BattleScript, Double, Int, FlowStopCondition?) throws -> Bool
-    let pickup: (PickupScript) throws -> Void
     var workflow: (LoadedWorkflow) throws -> Void = { _ in
         throw replayError("当前回放器未配置 version=3 DSL 支持。")
     }
     let progress: (Int, Int) -> Void
     let entryStarted: (LoadedScript.LoadedEntry) -> Void
 
-    func run(_ script: LoadedScript, stop: FlowStopCondition? = nil,
-             interval: Double = 0.5, steps: Int = 200) throws {
+    func run(_ script: LoadedScript) throws {
         try checkCancelled()
         switch script {
         case .recording(let script): try recording(script)
-        case .battle(let script): _ = try battle(script, interval, steps, stop)
-        case .pickup(let script): try pickup(script)
         case .workflow(let script): try workflow(script)
         case .flow(let loops, let entries):
             for loop in 0..<loops {
@@ -260,8 +135,7 @@ struct FlowRunner {
                 for entry in entries {
                     try checkCancelled()
                     entryStarted(entry)
-                    try run(entry.script, stop: entry.stop,
-                            interval: entry.interval, steps: entry.steps)
+                    try run(entry.script)
                 }
             }
         }

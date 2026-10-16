@@ -39,7 +39,7 @@
         },
         {
           "type": "script",
-          "script_name": "pickup_flow.json"
+          "script_name": "pickup.json"
         },
         {
           "type": "script",

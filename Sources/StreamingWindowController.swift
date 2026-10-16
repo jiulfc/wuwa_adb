@@ -454,7 +454,6 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             var failure: String?
             do {
                 try FileManager.default.createDirectory(at: worker.directory, withIntermediateDirectories: true)
-                let frameURL = worker.directory.appendingPathComponent("frame.png")
                 var classifierStarted = false
                 let check = {
                     try DispatchQueue.main.sync {
@@ -472,25 +471,6 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                     }
                     let runner = FlowRunner(checkCancelled: combinedCheck, recording: { recording in
                         try self.playRecording(recording, generation: generation, checkCancelled: combinedCheck)
-                    }, battle: { battle, interval, steps, stop in
-                        if !classifierStarted {
-                            try combinedCheck()
-                            DispatchQueue.main.sync { self.reportInfo("分类器加载中", point: nil) }
-                            try worker.start(project: project)
-                            classifierStarted = true
-                        }
-                        return try self.runBattle(battle, interval: interval, steps: steps, stop: stop,
-                                                  worker: worker, generation: generation, frameURL: frameURL,
-                                                  checkCancelled: combinedCheck)
-                    }, pickup: { pickup in
-                        let pickedUp = try self.playPickup(pickup.movement, condition: pickup.pickup_text,
-                                                          deviceWidth: pickup.deviceWidth, deviceHeight: pickup.deviceHeight,
-                                                          worker: worker, generation: generation, frameURL: frameURL,
-                                                          checkCancelled: combinedCheck)
-                        DispatchQueue.main.sync {
-                            guard self.playbackGeneration == generation, self.isPlayingBack else { return }
-                            self.reportInfo(pickedUp ? "已点击拾取" : "路径结束，未找到拾取文字", point: nil)
-                        }
                     }, workflow: { loadedWorkflow in
                         let file = loadedWorkflow.file.standardizedFileURL.resolvingSymlinksInPath()
                         guard !ancestors.contains(file), ancestors.count < 64 else {
@@ -510,16 +490,24 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                 }
                             }
                             try runLoaded(child, localCheck, nextAncestors)
-                        }, vision: { kind, roi, _, localCheck in
+                        }, vision: { kind, roi, parameters, localCheck in
                             try localCheck()
-                            guard kind == .ocrText else {
-                                throw replayError("当前设备回放尚不支持 \(kind.rawValue)；需要对应的已校准视觉后端。")
+                            if kind == .skillCheck {
+                                guard parameters["model"] == .string("default"),
+                                      parameters["threshold"] == .number(0) else {
+                                    throw replayError("skill_check 当前仅支持 model=default 和 threshold=0。")
+                                }
+                                if !classifierStarted {
+                                    DispatchQueue.main.sync { self.reportInfo("分类器加载中", point: nil) }
+                                    try worker.start(project: project)
+                                    classifierStarted = true
+                                }
                             }
                             let workflowFrame = worker.directory.appendingPathComponent("workflow-\(UUID().uuidString).png")
                             defer { try? FileManager.default.removeItem(at: workflowFrame) }
                             let size = try self.decoder.saveCurrentFrame(to: workflowFrame)
                             guard roi[0] + roi[2] <= Double(size.0), roi[1] + roi[3] <= Double(size.1) else {
-                                throw replayError("ocr_text ROI 超出当前画面范围。")
+                                throw replayError("\(kind.rawValue) ROI 超出当前画面范围。")
                             }
                             try DispatchQueue.main.sync {
                                 guard self.playbackGeneration == generation, self.isPlayingBack, !self.didFinish,
@@ -530,22 +518,48 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                             }
                             let normalized = [roi[0] / Double(size.0), roi[1] / Double(size.1),
                                               roi[2] / Double(size.0), roi[3] / Double(size.1)]
-                            let text = try TextStopCondition(text: "_", region: normalized).recognize(in: workflowFrame)
-                            try localCheck()
-                            return .string(text)
-                        }, touch: { point, down in
+                            switch kind {
+                            case .ocrText:
+                                let text = try TextStopCondition(text: "_", region: normalized).recognize(in: workflowFrame)
+                                try localCheck()
+                                return .string(text)
+                            case .skillCheck:
+                                guard case .string(let skill) = parameters["skill"] else {
+                                    throw replayError("skill_check 缺少 skill。")
+                                }
+                                let labels = try worker.classify(frame: workflowFrame, regions: [skill: normalized])
+                                try localCheck()
+                                guard let label = labels[skill], label == "useable" || label == "not_useable" else {
+                                    throw replayError("分类器返回了缺失或未知的技能分类。")
+                                }
+                                return .object([
+                                    "state": .string(label == "useable" ? "usable" : "unusable"),
+                                    "confidence": .null,
+                                    "box": .array(roi.map(JSONValue.number)),
+                                    "point": .array([.number(roi[0] + roi[2] / 2),
+                                                     .number(roi[1] + roi[3] / 2)])
+                                ])
+                            case .templateMatch, .circlePercentage:
+                                throw replayError("当前设备回放尚不支持 \(kind.rawValue)；需要对应的已校准视觉后端。")
+                            }
+                        }, touch: { point, action in
                             try DispatchQueue.main.sync {
                                 guard self.playbackGeneration == generation, self.isPlayingBack, !self.didFinish,
                                       self.client?.controlSender != nil,
                                       point[0] < Double(self.deviceWidth), point[1] < Double(self.deviceHeight),
                                       self.deviceWidth > 0, self.deviceHeight > 0 else {
-                                    throw replayError("tap 坐标超出范围或设备状态已变化。")
+                                    throw replayError("触摸坐标超出范围或设备状态已变化。")
                                 }
                                 let x = point[0] / Double(self.deviceWidth)
                                 let y = point[1] / Double(self.deviceHeight)
-                                self.executeEvent(.touch(action: Int(down ? ControlSender.actionDown : ControlSender.actionUp),
-                                                         relX: x, relY: y, t: 0))
-                                self.client?.log("[Workflow] Touch \(down ? "down" : "up"): pixel=(\(Int(point[0])), \(Int(point[1])))")
+                                let eventAction: UInt8
+                                switch action {
+                                case .down: eventAction = ControlSender.actionDown
+                                case .move: eventAction = ControlSender.actionMove
+                                case .up: eventAction = ControlSender.actionUp
+                                }
+                                self.executeEvent(.touch(action: Int(eventAction), relX: x, relY: y, t: 0))
+                                self.client?.log("[Workflow] Touch \(action.rawValue): pixel=(\(Int(point[0])), \(Int(point[1])))")
                             }
                         }, log: { message in
                             DispatchQueue.main.sync { self.client?.log(message) }
@@ -614,178 +628,6 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             _ = DispatchSemaphore(value: 0).wait(timeout: min(deadline, .now() + 0.05))
         }
         try checkCancelled()
-    }
-
-    private func runBattle(_ script: BattleScript, interval: Double, steps: Int, stop: FlowStopCondition?,
-                           worker: SkillClassifier, generation: Int, frameURL: URL,
-                           checkCancelled: WorkflowCancellationCheck) throws -> Bool {
-        let regions = script.regions.filter { script.priority.contains($0.key) }
-            .mapValues { script.normalizedRegion($0) }
-        var nextAction = DispatchTime.now()
-        var nextCheck = DispatchTime.now()
-        var nextLock = script.lock_enemy.map { _ in DispatchTime.now() }
-        var cycle = 0
-        while cycle < steps {
-            try checkCancelled()
-            if worker.isCancelled { throw replayError("回放已停止或分类器超时。") }
-            let now = DispatchTime.now()
-            let checkDue = stop != nil && now >= nextCheck
-            let actionDue = now >= nextAction
-            let lockDue = nextLock.map { now >= $0 } ?? false
-            if !checkDue && !actionDue && !lockDue {
-                var deadline = stop == nil ? nextAction : min(nextAction, nextCheck)
-                if let nextLock { deadline = min(deadline, nextLock) }
-                worker.wait(until: deadline)
-                continue
-            }
-            let size = checkDue || actionDue ? try decoder.saveCurrentFrame(to: frameURL) : nil
-            if size != nil { try checkCancelled() }
-            if let size, size.0 != Int(script.deviceWidth) || size.1 != Int(script.deviceHeight) {
-                throw replayError("battle 校准尺寸 \(script.deviceWidth)x\(script.deviceHeight) 与当前画面 \(size.0)x\(size.1) 不一致。")
-            }
-            if checkDue, let stop {
-                nextCheck = now + stop.check_interval
-                for region in stop.match.text_regions {
-                    let condition = TextStopCondition(text: stop.match.text, region: region)
-                    let text = try condition.recognize(in: frameURL)
-                    try checkCancelled()
-                    if worker.isCancelled { throw replayError("回放已停止。") }
-                    let matched = condition.matches(text)
-                    DispatchQueue.main.sync {
-                        self.client?.log("[Battle] Stop check: region=\(region), OCR=\(text.debugDescription), matched=\(matched)")
-                    }
-                    if matched { return true }
-                }
-            }
-            if lockDue, let lock = script.lock_enemy, let r = script.regions[lock.button] {
-                try DispatchQueue.main.sync {
-                    guard self.playbackGeneration == generation, self.isPlayingBack,
-                          !self.didFinish, !worker.isCancelled,
-                          self.deviceWidth == UInt32(script.deviceWidth),
-                          self.deviceHeight == UInt32(script.deviceHeight),
-                          self.client?.controlSender != nil else {
-                        throw replayError("设备状态已变化，回放已停止。")
-                    }
-                    let normalized = script.normalizedRegion(r)
-                    let x = normalized[0] + normalized[2] / 2, y = normalized[1] + normalized[3] / 2
-                    self.executeEvent(.touch(action: Int(ControlSender.actionDown), relX: x, relY: y, t: 0))
-                    self.executeEvent(.touch(action: Int(ControlSender.actionUp), relX: x, relY: y, t: 0))
-                    self.client?.log("[Battle] Lock enemy tap: \(lock.button), pixel=(\(Int(r[0] + r[2] / 2)), \(Int(r[1] + r[3] / 2)))")
-                }
-                nextLock = .now() + lock.interval
-            }
-            guard actionDue, let size else { continue }
-            let labels = try worker.classify(frame: frameURL, regions: regions)
-            try checkCancelled()
-            let skill = try script.selectedSkill(labels: labels)
-            try DispatchQueue.main.sync {
-                guard self.playbackGeneration == generation, self.isPlayingBack,
-                      !self.didFinish, !worker.isCancelled,
-                      self.deviceWidth == UInt32(size.0), self.deviceHeight == UInt32(size.1),
-                      self.client?.controlSender != nil else {
-                    throw replayError("设备状态已变化，回放已停止。")
-                }
-                self.client?.log("[Battle] Running \(self.controlInfoStore.runningScriptName ?? "—") steps: \(cycle + 1)/\(steps), area checks: " + script.priority.map { "\($0)=\(labels[$0] ?? "missing")" }.joined(separator: ", "))
-                if let skill, let r = script.regions[skill] {
-                    let normalized = script.normalizedRegion(r)
-                    let x = normalized[0] + normalized[2] / 2, y = normalized[1] + normalized[3] / 2
-                    self.executeEvent(.touch(action: Int(ControlSender.actionDown), relX: x, relY: y, t: 0))
-                    self.executeEvent(.touch(action: Int(ControlSender.actionUp), relX: x, relY: y, t: 0))
-                    self.client?.log("[Battle] Tap requested: \(skill), pixel=(\(Int(r[0] + r[2] / 2)), \(Int(r[1] + r[3] / 2)))")
-                    self.reportInfo("steps: \(cycle + 1)/\(steps) · 技能 \(skill)", point: (Int32(r[0] + r[2] / 2), Int32(r[1] + r[3] / 2)))
-                } else {
-                    self.reportInfo("steps: \(cycle + 1)/\(steps) · 无可用技能", point: nil)
-                }
-            }
-            cycle += 1
-            nextAction = now + interval
-        }
-        return false
-    }
-
-    private func playPickup(_ movement: PickupMovement, condition: PickupTextCondition,
-                            deviceWidth: Int32, deviceHeight: Int32,
-                            worker: SkillClassifier, generation: Int, frameURL: URL,
-                            checkCancelled: WorkflowCancellationCheck) throws -> Bool {
-        try checkCancelled()
-        let size = try decoder.saveCurrentFrame(to: frameURL)
-        guard size.0 == Int(deviceWidth), size.1 == Int(deviceHeight) else {
-            throw replayError("pickup 校准尺寸 \(deviceWidth)x\(deviceHeight) 与当前画面 \(size.0)x\(size.1) 不一致。")
-        }
-
-        func onMain(_ action: () -> Void) throws {
-            try DispatchQueue.main.sync {
-                guard self.playbackGeneration == generation, self.isPlayingBack, !self.didFinish,
-                      !worker.isCancelled, self.deviceWidth == UInt32(size.0),
-                      self.deviceHeight == UInt32(size.1), self.client?.controlSender != nil else {
-                    throw replayError("设备状态已变化，拾取已停止。")
-                }
-                action()
-            }
-        }
-
-        func releaseTouch() {
-            DispatchQueue.main.sync {
-                guard self.playbackGeneration == generation, let point = self.playbackTouch else { return }
-                self.executeEvent(.touch(action: Int(ControlSender.actionUp), relX: point.0, relY: point.1, t: 0))
-            }
-        }
-        defer { releaseTouch() }
-
-        func checkPickup() throws -> Bool {
-            try checkCancelled()
-            try onMain { }
-            let currentSize = try self.decoder.saveCurrentFrame(to: frameURL)
-            guard currentSize == size else { throw replayError("视频尺寸已变化，拾取已停止。") }
-            let matchedRegion = try condition.matchingRegion(in: frameURL,
-                                                              deviceWidth: deviceWidth, deviceHeight: deviceHeight) { region, text, matched in
-                try onMain {
-                    self.client?.log("[Pickup] Check: target=\(condition.text.debugDescription), region=\(region), OCR=\(text.debugDescription), matched=\(matched)")
-                }
-            }
-            try checkCancelled()
-            if let region = matchedRegion {
-                releaseTouch()
-                try onMain {
-                    let pixelX = region[0] + region[2] / 2
-                    let pixelY = region[1] + region[3] / 2
-                    let x = pixelX / Double(deviceWidth)
-                    let y = pixelY / Double(deviceHeight)
-                    self.executeEvent(.touch(action: Int(ControlSender.actionDown), relX: x, relY: y, t: 0))
-                    self.executeEvent(.touch(action: Int(ControlSender.actionUp), relX: x, relY: y, t: 0))
-                    self.client?.log("[Pickup] Tap requested: pixel=(\(Int32(pixelX)), \(Int32(pixelY))); movement stopped")
-                }
-            }
-            return matchedRegion != nil
-        }
-
-        try onMain {
-            self.client?.log("[Pickup] Starting pickup search")
-            self.reportInfo("寻找拾取文字", point: nil)
-        }
-        if try checkPickup() { return true }
-        // shortcut: timed legs assume a fixed camera and speed; recalibrate when either changes.
-        for (index, step) in movement.steps.enumerated() {
-            let point = movement.point(for: step.direction)
-            try onMain {
-                self.client?.log("[Pickup] Move \(index + 1)/\(movement.steps.count): \(step.direction.rawValue), \(step.seconds)s in bursts of at most 0.25s")
-            }
-            for duration in step.bursts {
-                try checkCancelled()
-                try onMain {
-                    self.executeEvent(.touch(action: Int(ControlSender.actionDown), relX: movement.joystick[0], relY: movement.joystick[1], t: 0))
-                    self.executeEvent(.touch(action: Int(ControlSender.actionMove), relX: point.0, relY: point.1, t: 0))
-                }
-                worker.wait(until: DispatchTime.now() + duration)
-                try checkCancelled()
-                releaseTouch()
-                // Allow the released joystick and interaction prompt to reach the video stream.
-                worker.wait(until: DispatchTime.now() + 0.15)
-                if try checkPickup() { return true }
-            }
-        }
-        try onMain { self.client?.log("[Pickup] Route finished without matching pickup text") }
-        return false
     }
 
     private func executeEvent(_ event: ScriptEvent) {

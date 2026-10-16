@@ -71,17 +71,18 @@ open AdbQuick.app          # 或双击 .app
 
 ## 流程回放（JSON v3）
 
-仅支持 JSON v3，v1/v2 会被拒绝。v3 包含 `events` 录制脚本、`vars` / `steps` DSL、`script_loop_count` / `run` 流程以及带 `type` 的 battle/pickup 配置；加载器按顶层字段区分格式。
+仅支持 JSON v3，v1/v2 会被拒绝。v3 包含 `events` 录制脚本、`vars` / `steps` DSL 和 `script_loop_count` / `run` 顺序流程；加载器按顶层字段区分格式。旧 `type: "battle"` / `type: "pickup"` 格式已移除。
 
 ### vars / steps DSL
 
 ```json
 {
   "version": 3,
-  "vars": { "count": 0, "text": "" },
+  "vars": { "count": 0, "text": "", "number": 0, "text_roi": [100, 200, 300, 80] },
   "steps": [
     { "type": "assign", "target": "${count}", "value": "${count + 1}" },
-    { "type": "ocr_text", "roi": [100, 200, 300, 80], "output": "${text}" },
+    { "type": "ocr_text", "roi": "${text_roi}", "output": "${text}" },
+    { "type": "ocr_text", "roi": "${text_roi}", "output": "${number:int}" },
     { "type": "if", "condition": "${text == 'DONE'}", "then": [{ "type": "return" }] },
     { "type": "tap", "point": [250, 240], "duration_ms": 100 },
     { "type": "wait", "wait_ms": 500 }
@@ -89,136 +90,54 @@ open AdbQuick.app          # 或双击 .app
 }
 ```
 
-DSL 回放支持 `assign`、`while`、`if`、`monitor`、`script`、`tap`、`wait`、`break`、`continue`、`return` 和受限表达式。子脚本路径相对于引用文件，变量在每个 DSL 文件内局部生效；monitor 会取消并等待已结束的分支。坐标使用当前设备方向下的像素坐标。
+DSL 回放支持 `assign`、`while`、`if`、`monitor`、`script`、`tap`、`drag`、`wait`、`break`、`continue`、`return` 和受限表达式。`vars` 可以保存 JSON 数组，ROI、点位等字段可直接使用 `"${roi}"` 引用。`ocr_text` 默认返回字符串；`output` 使用 `${name:int}` 或 `${name:double}` 时，会把去除首尾空白的完整 OCR 结果解析为数字，空值或非数字会终止流程。
 
-解析器也验证 `template_match`、`skill_check`、`circle_percentage` 的输入并将它们交给视觉回调；当前设备适配器只实现了 `ocr_text`。其余三种命令在回放时明确报错，直到接入相应的已校准视觉后端。
+所有 version 3 文件的顶层、DSL 步骤、`run` 对象条目和录制事件都可以添加可选字符串 `label` 作为注释。`label` 不影响执行。
 
-### run 流程
+子脚本路径相对于引用文件，变量在每个 DSL 文件内局部生效；monitor 会取消并等待已结束的分支。坐标使用当前设备方向下的像素坐标。`drag` 的 `from` / `to` 是起止像素坐标，`duration_ms` 是移到终点后的持续时间；完成、取消或出错都会释放触摸。
 
-现有主流程为 `scripts/4c_xin_loop_team_kxq/main.json`，按顺序执行 `prepare.json` → combat 包装流程 → pickup 包装流程 → `finish.json`，共 20 轮。
+当前设备适配器实现了 `ocr_text` 和 `skill_check`。`skill_check` 使用设置中的 `wuwa_classify` 项目，当前要求 `model: "default"` 和 `threshold: 0`；`template_match` 与 `circle_percentage` 仍会明确报错。
 
-在设置中选择相邻的 `wuwa_classify` 项目目录（包含 `.venv/bin/python`、`live.py` 和训练好的模型）。连接设备后点击 **回放**，选择 v3 JSON。再次点击回放、关闭窗口、断开连接或视频尺寸变化会取消整个流程并释放触摸；任何执行错误同样终止剩余流程。只有执行到 battle 时才启动分类器，每次完整回放只加载一次，嵌套和重复共用它。
+### 流程组合
 
-### 主流程
+现有主流程 `scripts/4c_xin_loop_team_kxq/main.json` 本身是 DSL，按顺序执行 prepare → combat DSL → pickup DSL → finish，共 20 轮。`script` 可引用 v3 录制脚本、DSL 或 `run` 顺序流程；路径相对于引用文件。
 
-以下是结构示例，文件名与区域需要对应实际脚本和游戏画面：
+`run` 流程仍支持 `script_loop_count`、字符串文件名和 `{"id":"combat","name":"combat.json"}` 条目。`id` 在同一流程内必须非空且唯一；省略时使用 `step_1`、`step_2` 等位置标识。`interval`、`steps`、`stop_when` 和 `when` 已移除，对应逻辑用 DSL `while` / `monitor` 表达。
+
+所有引用文件在发送任何操作前递归读取并验证；缺失文件、未知版本、循环引用（含符号链接）或超过 64 层的嵌套会拒绝整次回放。错误和手动取消会终止整个流程并释放触摸。
+
+### combat DSL
+
+`scripts/common/combat_role_*.json` 是可直接执行的 v3 DSL。技能 ROI 和点位保存在数组变量中，每轮按角色优先级执行 `skill_check`，只点击第一个 `state == "usable"` 的技能。最多执行 200 轮，每轮后等待 500 ms；外层 `monitor` 匹配结束文字时会取消 combat 脚本。
+
+锁定按键在第一轮和每 5 轮点击一次。shortcut: 这是基于轮数的近似定时，实际间隔为至少 2.5 秒加分类耗时；需要精确间隔时再为 DSL 增加单调时间。
+
+在设置中选择相邻的 `wuwa_classify` 项目目录（包含 `.venv/bin/python`、`live.py` 和训练好的模型）。第一次 `skill_check` 才启动分类器，每次完整回放只加载一次。模型返回的 `useable` / `not_useable` 会映射为 DSL 的 `usable` / `unusable`；响应缺失或未知分类会终止流程。
+
+### pickup.json
+
+`scripts/4c_xin_loop_team_kxq/pickup.json` 是可直接执行的 v3 DSL。它用变量记录路线阶段、剩余移动时间和命中区域，用 `while` 遍历校准路线：
 
 ```json
 {
   "version": 3,
-  "script_loop_count": 20,
-  "run": [
-    {
-      "id": "prepare",
-      "name": "prepare_xin.json"
-    },
-    {
-      "id": "combat",
-      "name": "battle_xin_4c.json",
-      "interval": 0.5,
-      "steps": 200,
-      "stop_when": {
-        "check_interval": 0.5,
-        "match": {
-          "type": "text_any",
-          "text": [
-            "领取",
-            "明日",
-            "BATTLE DONE"
-          ],
-          "text_regions": [
-            [
-              0.068181818,
-              0.277777778,
-              0.054924242,
-              0.031944444
-            ]
-          ]
-        }
-      }
-    },
-    {
-      "id": "pickup",
-      "name": "pickup.json"
-    },
-    {
-      "id": "finish",
-      "name": "finish.json"
-    }
+  "vars": {"remaining_ms": 1000, "move_to": [501, 880], "pickup_text": ""},
+  "steps": [
+    {"type": "while", "condition": "${remaining_ms > 0}", "steps": [
+      {"type": "drag", "from": [501, 1080], "to": "${move_to}", "duration_ms": 250},
+      {"type": "assign", "target": "${remaining_ms}", "value": "${remaining_ms - 250}"},
+      {"type": "wait", "wait_ms": 150},
+      {"type": "ocr_text", "roi": [2041, 589, 111, 46], "output": "${pickup_text}"}
+    ]}
   ]
 }
 ```
 
-- `script_loop_count`：整个 `run` 的执行次数，正整数，默认 1。字段名是 **loop**（不是 `script_look_count`）。
-- `run`：非空数组，严格按从左到右的顺序逐个完成，不需要额外 `sort`。字符串 `"file.json"` 等价于 `{"name":"file.json"}`。
-- `name`：可引用 v3 录制脚本、嵌套流程，或带 `type` 的 battle/pickup 配置。路径相对于**引用它的流程文件**，也支持绝对路径。
-- `interval` / `steps`：只允许用于 battle，分别为技能判断的间隔秒数和最大次数，默认 0.5 / 200，必须为正数 / 正整数。录制脚本保留自身事件时间和 `repeatCount`，run 流程保留自身 `script_loop_count`。
-- `id`：条目标识，用于执行日志。同一流程内必须非空且唯一；嵌套流程各自独立。省略时自动使用 `step_1`、`step_2` 等位置标识，字符串简写仍然支持。显式 ID 也不能与自动 ID 冲突。
-- 所有条目正常完成后继续下一条，不再支持 `when` 或记录前一步结果。battle 因文字匹配结束或次数耗尽后都会运行 pickup；错误和手动取消仍终止整个流程。
+`pickup.json` 先按顺序检查两个绝对像素 ROI，首个识别到“吸收”的区域会被点击一次。没有匹配时，保留原有 21 段校准路线；每次 `drag` 最多 250 ms，松开摇杆并等待 150 ms 后再 OCR。路径耗尽后直接结束，不无限搜索。
 
-所有引用文件在发送任何操作前递归读取并验证；缺失文件、未知版本、无效区域/参数、循环引用（含符号链接）或超过 64 层的嵌套会拒绝整次回放。相同文件可在不同位置重复引用。没有通用 JSON 合并或任意代码执行。
+`drag.from` 是摇杆中心，`drag.to` 是方向终点，都是当前方向下的绝对像素坐标。路线相对于镜头，没有定位或避障，分辨率、移动速度或镜头变化后需要重新校准。
 
-### stop_when 的作用范围
-
-`run` 条目内的 `stop_when` 使用 `{ "check_interval": 0.5, "match": { "type": "text_any", "text": ["DONE"], "text_regions": [[0,0,1,1]] } }` 格式，**只结束当前 battle**，随后继续 `run` 中剩余条目及后续流程轮次，不中断录制脚本、pickup 或整个流程。省略时 battle 仅受 `steps` 限制。条件只属于配置它的 battle 条目，不继承到其他条目或嵌套流程。顶层 `stop_when` 已移除。
-
-`match` 内的 `type` 仅支持 `text_any`；`text` 必须是非空字符串数组，任一区域识别到任一短语即匹配（忽略大小写并合并空白，使用子串匹配）。`text_regions` 必须是非空区域数组，每项为 `[x, y, width, height]`：左上角原点的 0–1 归一化坐标，宽高大于零且不得超出画面；例如检查全屏使用 `[[0, 0, 1, 1]]`。
-
-`check_interval` 默认 0.5 秒，必须为正数。battle 开始时立即检查，之后按自己的间隔检查，不依赖技能点击间隔。OCR / 分类器串行运行，耗时可能推迟检查或点击，不并发补发；不是硬实时定时器。OCR 使用 macOS Vision 本地准确模式，支持中文和英文；错误会停止整个流程。
-
-### battle.json
-
-技能配置为带 `version: 3` 和 `type` 的数据文件，通过 v3 `run` 执行：
-
-```json
-{
-  "version": 3,
-  "deviceWidth": 3168,
-  "deviceHeight": 1440,
-  "type": "battle",
-  "priority": ["S", "A"],
-  "lock_enemy": {"button": "L", "interval": 5},
-  "regions": {
-    "S": [2276, 936, 72, 72],
-    "A": [2448, 1000, 240, 240],
-    "L": [935, 1200, 40, 40]
-  }
-}
-```
-
-`regions` 是按键名到绝对像素区域 `[x, y, width, height]` 的**对象**，左上角为原点。`deviceWidth` / `deviceHeight` 必须与当前画面尺寸一致，所有区域都必须位于画面内；程序仅在调用分类器和发送触摸时转换为相对坐标。`priority` 非空且不重复，每个技能必须有合法区域。每轮从最新视频帧分类，按优先级点击首个 `useable` 技能中心；全部为 `not_useable` 时跳过点击，该轮仍计入 `steps`。模型响应缺失或未知分类会终止流程。点击日志表示已请求发送操作，不代表游戏已响应。
-
-可选的 `lock_enemy` 在 battle 开始时立即点击一次，之后按 `interval` 秒重复点击 `button` 对应区域的中心，直到 battle 结束。该点击独立于技能轮次，不检查分类结果；`button` 必须存在于 `regions`，`interval` 必须为正数。
-
-`scripts/common/combat_role_*.json` 保留各角色的技能优先级和校准区域。
-
-### pickup.json
-
-`scripts/4c_xin_loop_team_kxq/pickup.json` 包含文字条件和移动路径，是可执行的 pickup 配置：
-
-```json
-{
-  "version": 3,
-  "deviceWidth": 3168,
-  "deviceHeight": 1440,
-  "type": "pickup",
-  "pickup_text": {
-    "text": "吸收",
-    "regions": [[2041, 589, 111, 46]]
-  },
-  "movement": {
-    "joystick": [0.15814394, 0.75],
-    "radius": [0.063131313, 0.138888889],
-    "steps": [{"direction": "up", "seconds": 1}]
-  }
-}
-```
-
-`pickup_text.text` 支持非空字符串或非空字符串数组；`regions` 是非空的绝对像素区域 `[x, y, width, height]` 数组，必须位于 `deviceWidth` / `deviceHeight` 内且与当前画面尺寸一致。先按区域顺序检查，首个匹配区域被点击一次后结束；没有匹配才执行有限移动路径。每移动最多 0.25 秒松开摇杆，等待 0.15 秒画面更新，再检查新帧；OCR 期间静止。路径耗尽后继续下一条 run，不无限搜索。
-
-`joystick` 是归一化摇杆中心，`radius` 是横纵拖动距离；方向支持 `up/right/down/left`，`seconds` 是正数累计移动时间，不包含 OCR 和等待时间。现有共用文件保留全部 21 段路线和校准值。方向相对于镜头，没有定位或避障，移动速度与镜头变化后需要重新校准。
-
-不能直接选择 battle/pickup 配置作为顶层回放；单独执行时使用 `{"version":3,"run":["pickup.json"]}` 这样的包装流程。JSON 参数更新后重新选择回放即可；从旧应用升级到 v3 需要重新编译应用。
+`pickup.json` 可以被主 DSL 的 `script` 直接引用，也可以在回放面板直接选择，不再需要 `pickup_flow.json` 包装。旧 `type: "pickup"` 格式已移除。JSON 参数更新后重新选择回放即可；从旧应用升级需要重新编译应用。
 
 日志写入终端和 `/tmp/adbquick.log`，临时帧图和分类器进程日志在回放完成后清理。
 
@@ -231,14 +150,14 @@ swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-flow-check
   Sources/WorkflowModel.swift Sources/WorkflowExpressionParser.swift \
   Sources/WorkflowParser.swift Sources/WorkflowRunner.swift \
   Sources/Script.swift Sources/FlowScript.swift Sources/TextStopCondition.swift \
-  Sources/PickupMovement.swift Tests/flow.swift
+  Tests/flow.swift
 /tmp/adbquick-flow-check
 
 swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-workflow-check \
   Sources/WorkflowModel.swift Sources/WorkflowExpressionParser.swift \
   Sources/WorkflowParser.swift Sources/WorkflowRunner.swift \
   Sources/Script.swift Sources/FlowScript.swift Sources/TextStopCondition.swift \
-  Sources/PickupMovement.swift Tests/WorkflowParserTests.swift
+  Tests/WorkflowParserTests.swift
 /tmp/adbquick-workflow-check
 ```
 
@@ -247,7 +166,7 @@ swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-workflow-c
 ```bash
 swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-replay-check \
   Sources/WorkflowModel.swift Sources/WorkflowExpressionParser.swift Sources/WorkflowParser.swift Sources/WorkflowRunner.swift \
-  Sources/Script.swift Sources/FlowScript.swift Sources/TextStopCondition.swift Sources/PickupMovement.swift Sources/SkillClassifier.swift \
+  Sources/Script.swift Sources/FlowScript.swift Sources/TextStopCondition.swift Sources/SkillClassifier.swift \
   Sources/VideoDecoder.swift Sources/Socket.swift Tests/check.swift
 /tmp/adbquick-replay-check ../wuwa_classify
 ```

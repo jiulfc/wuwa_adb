@@ -6,28 +6,6 @@ import AppKit
 struct Check {
     static func main() throws {
         setbuf(stdout, nil)
-        let regions = Dictionary(uniqueKeysWithValues: ["R", "E", "A", "D"].map { ($0, [25.0, 25.0, 50.0, 50.0]) })
-        let program = BattleScript(
-                                        deviceWidth: 100, deviceHeight: 100,
-                                        priority: ["R", "E", "A", "D"], regions: regions, lock_enemy: nil)
-        try program.validate()
-        precondition(program.normalizedRegion(regions["R"]!) == [0.25, 0.25, 0.5, 0.5])
-        for mask in 0..<16 {
-            let labels = Dictionary(uniqueKeysWithValues: program.priority.enumerated().map {
-                ($0.element, mask & (1 << $0.offset) == 0 ? "not_useable" : "useable")
-            })
-            let expected = program.priority.enumerated().first { mask & (1 << $0.offset) != 0 }?.element
-            let selected = try program.selectedSkill(labels: labels)
-            precondition(selected == expected)
-        }
-        do { _ = try program.selectedSkill(labels: ["R": "useable"]); fatalError("Missing labels accepted") }
-        catch { }
-        for invalid in [[0.0, 0, 0, 0], [-0.1, 0, 50, 50], [90, 0, 50, 50], [0, 0, Double.nan, 100]] {
-            let bad = BattleScript(
-                                        deviceWidth: 100, deviceHeight: 100,
-                                        priority: ["R"], regions: ["R": invalid], lock_enemy: nil)
-            do { try bad.validate(); fatalError("Invalid region accepted") } catch { }
-        }
         let old = Script(deviceWidth: 1584, deviceHeight: 720,
                          events: [.touch(action: 0, relX: 0.5, relY: 0.5, t: 0), .touch(action: 1, relX: 0.5, relY: 0.5, t: 0.1)])
         let restored = try Script.decode(from: old.encoded())
@@ -51,8 +29,6 @@ struct Check {
             do { _ = try Script.decode(from: Data(json.utf8)); fatalError("Unsupported version accepted") } catch { }
         }
         print("V3 optional repeatCount, version rejection, integer validation, and event timing round-trip passed")
-        print("Priority combinations, invalid regions, missing labels, and v3 round-trip passed")
-        try checkPickupMovement()
         try checkTextStop()
 
         guard CommandLine.arguments.count == 2 else { return }
@@ -173,30 +149,6 @@ struct Check {
         let bottom = TextStopCondition(text: "BATTLE DONE", region: [0, 0.5, 1, 0.5])
         let outside = try bottom.recognize(in: frame)
         precondition(!bottom.matches(outside), "OCR included text outside region")
-        let pickupAreas = try JSONDecoder().decode(PickupTextCondition.self,
-            from: Data(#"{"text":["BATTLE DONE","领取"],"regions":[[0,200,1000,200],[0,0,1000,200],[0,0,1000,400]]}"#.utf8))
-        var checked: [Bool] = []
-        let matchedRegion = try pickupAreas.matchingRegion(in: frame, deviceWidth: 1000, deviceHeight: 400) { _, _, matched in
-            checked.append(matched)
-        }
-        precondition(matchedRegion == [0, 0, 1000, 200] && checked == [false, true],
-                     "Pickup must select the first matching area and stop checking")
-        let noMatch = try JSONDecoder().decode(PickupTextCondition.self,
-            from: Data(#"{"text":"ABSENT","regions":[[0,0,1000,200],[0,200,1000,200]]}"#.utf8))
-        checked = []
-        let missingRegion = try noMatch.matchingRegion(in: frame, deviceWidth: 1000, deviceHeight: 400) { _, _, matched in
-            checked.append(matched)
-        }
-        precondition(missingRegion == nil && checked == [false, false])
-        for invalid in ["[]", "[[0,0,1000,400],[]]", "[[0,0,1000,400],[0,390,1000,20]]", "[0,0,1000,400]", "null"] {
-            let json = "{\"text\":\"DONE\",\"regions\":\(invalid)}"
-            do {
-                let bad = try JSONDecoder().decode(PickupTextCondition.self, from: Data(json.utf8))
-                try bad.validate(deviceWidth: 1000, deviceHeight: 400)
-                fatalError("Invalid pickup regions accepted")
-            } catch { }
-        }
-        print("Pickup multiple areas, first-match selection, no match, and invalid regions passed")
         let chinese = TextStopCondition(text: "领取", region: [216.0 / 3168, 400.0 / 1440, 174.0 / 3168, 46.0 / 1440])
         let demo = URL(fileURLWithPath: "demo.png")
         let start = Date()
@@ -209,28 +161,4 @@ struct Check {
         print("Optional text config, matching, validation, and real OCR region checks passed")
     }
 
-    static func checkPickupMovement() throws {
-        for seconds in [0.1, 0.25, 0.3, 1.0, 1.1, 10.0] {
-            let bursts = Array(PickupMovement.Step(direction: .up, seconds: seconds).bursts)
-            precondition(bursts.allSatisfy { $0 > 0 && $0 <= 0.25 })
-            precondition(abs(bursts.reduce(0, +) - seconds) < 1e-9, "Bursts changed total movement time")
-        }
-        let partial = Array(PickupMovement.Step(direction: .right, seconds: 0.3).bursts)
-        precondition(partial.count == 2 && abs(partial[1] - 0.05) < 1e-9)
-        let movement = try JSONDecoder().decode(PickupMovement.self, from: Data(#"{"joystick":[0.2,0.7],"radius":[0.05,0.1],"steps":[{"direction":"up","seconds":1},{"direction":"right","seconds":2},{"direction":"down","seconds":3},{"direction":"left","seconds":4},{"direction":"up","seconds":5},{"direction":"right","seconds":6}]}"#.utf8))
-        try movement.validate()
-        let expected = [(0.2, 0.6), (0.25, 0.7), (0.2, 0.8), (0.15, 0.7), (0.2, 0.6), (0.25, 0.7)]
-        for (step, expectedPoint) in zip(movement.steps, expected) {
-            let point = movement.point(for: step.direction)
-            precondition(abs(point.0 - expectedPoint.0) < 1e-9 && abs(point.1 - expectedPoint.1) < 1e-9)
-        }
-        for bad in [PickupMovement(joystick: [], radius: [0.1, 0.1], steps: movement.steps),
-                    PickupMovement(joystick: [0, 0], radius: [0.1, 0.1], steps: movement.steps),
-                    PickupMovement(joystick: [0.5, 0.5], radius: [0.1, 0.1], steps: []),
-                    PickupMovement(joystick: [0.5, 0.5], radius: [0.1, 0.1], steps: [.init(direction: .up, seconds: -.infinity)]),
-                    PickupMovement(joystick: [0.5, 0.5], radius: [0.1, 0.1], steps: [.init(direction: .up, seconds: 0)])] {
-            do { try bad.validate(); fatalError("Invalid movement accepted") } catch { }
-        }
-        print("Pickup route geometry and configuration validation passed")
-    }
 }

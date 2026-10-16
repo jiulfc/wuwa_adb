@@ -3,6 +3,7 @@ import Foundation
 /// 一条可回放的控制事件。
 struct ScriptEvent: Codable {
     var type: String          // "touch" | "scroll" | "key"
+    var label: String? = nil  // optional user comment
     var action: Int?          // touch: 0=down, 1=up, 2=move
     var relX: Double?         // 相对横坐标 0~1
     var relY: Double?         // 相对纵坐标 0~1
@@ -30,6 +31,7 @@ extension ScriptEvent {
 /// 一个录制脚本。
 struct Script: Codable {
     var version: Int = 3
+    var label: String? = nil
     var deviceWidth: UInt32
     var deviceHeight: UInt32
     var events: [ScriptEvent]

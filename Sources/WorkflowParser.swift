@@ -14,7 +14,8 @@ public struct WorkflowParser {
             throw DSLParseError(path: "$", message: "Invalid JSON: \(error)")
         }
         let root = try object(value, at: "$")
-        try fields(root, required: ["version", "vars", "steps"], at: "$")
+        try fields(root, required: ["version", "vars", "steps"], optional: ["label"], at: "$")
+        try validateLabel(root, at: "$")
         guard root["version"] == .number(3) else {
             throw DSLParseError(path: "$.version", message: "Only DSL version 3 is supported")
         }
@@ -44,6 +45,11 @@ private func fields(_ obj: [String: JSONValue], required: Set<String>, optional:
     }
 }
 
+private func validateLabel(_ obj: [String: JSONValue], at path: String) throws {
+    if let label = obj["label"], case .string = label { return }
+    if obj["label"] != nil { throw DSLParseError(path: "\(path).label", message: "Expected a string") }
+}
+
 private struct Validator {
     let variables: Set<String>
 
@@ -59,7 +65,8 @@ private struct Validator {
         let obj = try object(value, at: path)
         guard case .string(let type) = obj["type"] else { throw fail(path + ".type", "Expected command name") }
         func schema(_ required: Set<String>, _ optional: Set<String> = []) throws {
-            try fields(obj, required: required.union(["type"]), optional: optional, at: path)
+            try fields(obj, required: required.union(["type"]), optional: optional.union(["label"]), at: path)
+            try validateLabel(obj, at: path)
         }
         func input(_ name: String) throws -> Input {
             try self.input(obj[name]!, at: path + "." + name)
@@ -68,7 +75,7 @@ private struct Validator {
             try steps(obj[name]!, at: path + "." + name, loops: loopDepth ?? loops,
                       inCheck: check ?? inCheck, depth: depth + 1)
         }
-        if inCheck && ["tap", "script", "monitor", "wait", "return"].contains(type) {
+        if inCheck && ["tap", "drag", "script", "monitor", "wait", "return"].contains(type) {
             throw fail(path, "'\(type)' is not allowed in a monitor check")
         }
         switch type {
@@ -100,6 +107,11 @@ private struct Validator {
             try schema(["point", "duration_ms"])
             return .tap(point: try coordinates(input("point"), count: 2, at: path + ".point"),
                         duration: try number(input("duration_ms"), at: path + ".duration_ms", minimum: 1, integer: true))
+        case "drag":
+            try schema(["from", "to", "duration_ms"])
+            return .drag(from: try coordinates(input("from"), count: 2, at: path + ".from"),
+                         to: try coordinates(input("to"), count: 2, at: path + ".to"),
+                         duration: try number(input("duration_ms"), at: path + ".duration_ms", minimum: 1, integer: true))
         case "wait":
             try schema(["wait_ms"])
             return .wait(milliseconds: try number(input("wait_ms"), at: path + ".wait_ms", minimum: 0, integer: true))
@@ -124,9 +136,10 @@ private struct Validator {
                     ? try number(v, at: path + "." + key, minimum: kind == .templateMatch ? -1 : 0, maximum: 1)
                     : try string(v, at: path + "." + key)
             }
+            let output = try visionDestination(obj["output"]!, kind: kind, at: path + ".output")
             return .vision(VisionCommand(kind: kind,
                                          roi: try coordinates(input("roi"), count: 4, at: path + ".roi"),
-                                         output: try destination(obj["output"]!, at: path + ".output"), parameters: parameters))
+                                         output: output.name, outputType: output.type, parameters: parameters))
         }
     }
 
@@ -158,6 +171,28 @@ private struct Validator {
             throw fail(path, "Expected a single variable reference such as ${button_text}")
         }
         return name
+    }
+
+    private func visionDestination(_ value: JSONValue, kind: VisionKind,
+                                   at path: String) throws -> (name: String, type: VisionOutputType?) {
+        guard case .string(let reference) = value, reference.hasPrefix("${"), reference.hasSuffix("}") else {
+            throw fail(path, "Expected a variable reference such as ${button_text}")
+        }
+        let parts = reference.dropFirst(2).dropLast().split(separator: ":", omittingEmptySubsequences: false)
+        guard let rawName = parts.first, parts.count <= 2 else {
+            throw fail(path, "Invalid output variable reference")
+        }
+        let name = String(rawName)
+        guard ExpressionParser.isName(name), variables.contains(name) else {
+            throw fail(path, "Undeclared or invalid output variable '\(name)'")
+        }
+        guard parts.count == 2 else { return (name, nil) }
+        guard kind == .ocrText else { throw fail(path, "Typed output is only supported by ocr_text") }
+        switch parts[1] {
+        case "int": return (name, .int)
+        case "double": return (name, .double)
+        default: throw fail(path, "Output type must be int or double")
+        }
     }
 
     private enum Kind { case boolean, number, string, array, object, null, dynamic }

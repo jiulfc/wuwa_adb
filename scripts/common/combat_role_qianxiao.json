@@ -1,19 +1,114 @@
 {
   "version": 3,
-  "deviceHeight": 1440,
-  "deviceWidth": 3168,
-  "type": "battle",
-  "priority": ["R", "E", "S", "A"],
-  "lock_enemy": {
-    "button": "L",
-    "interval": 5
+  "vars": {
+    "cycle": 0,
+    "max_cycles": 200,
+    "used": false,
+    "skill_state": null,
+    "lock_point": [955, 1220],
+    "r_roi": [2124, 1084, 120, 120],
+    "e_roi": [2276, 1188, 144, 144],
+    "s_roi": [2276, 936, 72, 72],
+    "a_roi": [2448, 1000, 240, 240]
   },
-  "regions": {
-    "R": [2124, 1084, 120, 120],
-    "E": [2276, 1188, 144, 144],
-    "A": [2448, 1000, 240, 240],
-    "S": [2276, 936, 72, 72],
-    "D": [2720, 1188, 144, 144],
-    "L": [935, 1200, 40, 40]
-  }
+  "steps": [
+    {
+      "type": "while",
+      "condition": "${cycle < max_cycles}",
+      "steps": [
+        {
+          "type": "if",
+          "condition": "${cycle % 10 == 0}",
+          "then": [
+            {"type": "tap", "point": "${lock_point}", "duration_ms": 100}
+          ]
+        },
+        {"type": "assign", "target": "${used}", "value": false},
+        {
+          "type": "skill_check",
+          "roi": "${r_roi}",
+          "model": "default",
+          "skill": "R",
+          "threshold": 0,
+          "output": "${skill_state}"
+        },
+        {
+          "type": "if",
+          "condition": "${skill_state.state == 'usable'}",
+          "then": [
+            {"type": "tap", "point": "${skill_state.point}", "duration_ms": 100},
+            {"type": "assign", "target": "${used}", "value": true}
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${!used}",
+          "then": [
+            {
+              "type": "skill_check",
+              "roi": "${e_roi}",
+              "model": "default",
+              "skill": "E",
+              "threshold": 0,
+              "output": "${skill_state}"
+            },
+            {
+              "type": "if",
+              "condition": "${skill_state.state == 'usable'}",
+              "then": [
+                {"type": "tap", "point": "${skill_state.point}", "duration_ms": 100},
+                {"type": "assign", "target": "${used}", "value": true}
+              ]
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${!used}",
+          "then": [
+            {
+              "type": "skill_check",
+              "roi": "${s_roi}",
+              "model": "default",
+              "skill": "S",
+              "threshold": 0,
+              "output": "${skill_state}"
+            },
+            {
+              "type": "if",
+              "condition": "${skill_state.state == 'usable'}",
+              "then": [
+                {"type": "tap", "point": "${skill_state.point}", "duration_ms": 100},
+                {"type": "assign", "target": "${used}", "value": true}
+              ]
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${!used}",
+          "then": [
+            {
+              "type": "skill_check",
+              "roi": "${a_roi}",
+              "model": "default",
+              "skill": "A",
+              "threshold": 0,
+              "output": "${skill_state}"
+            },
+            {
+              "type": "if",
+              "condition": "${skill_state.state == 'usable'}",
+              "then": [
+                {"type": "tap", "point": "${skill_state.point}", "duration_ms": 100},
+                {"type": "assign", "target": "${used}", "value": true}
+              ]
+            }
+          ]
+        },
+        {"type": "assign", "target": "${cycle}", "value": "${cycle + 1}"},
+        {"type": "wait", "wait_ms": 500}
+      ]
+    }
+  ]
 }

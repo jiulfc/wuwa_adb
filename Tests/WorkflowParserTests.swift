@@ -3,8 +3,8 @@ import Foundation
 @main
 struct WorkflowParserCheck {
     static func main() throws {
-        func parse(_ steps: String, vars: String = #"{"n":0,"text":"","match":null,"skill_state":null,"cooldown":null}"#) throws -> Workflow {
-            try WorkflowParser().parse(Data("{\"version\":3,\"vars\":\(vars),\"steps\":\(steps)}".utf8))
+        func parse(_ steps: String, vars: String = #"{"n":0,"text":"","match":null,"skill_state":null,"cooldown":null,"skill_roi":[0,0,10,10]}"#) throws -> Workflow {
+            try WorkflowParser().parse(Data("{\"version\":3,\"label\":\"test workflow\",\"vars\":\(vars),\"steps\":\(steps)}".utf8))
         }
         func rejects(_ steps: String, containing message: String) {
             do { _ = try parse(steps); fatalError("Invalid steps accepted: \(steps)") }
@@ -13,11 +13,12 @@ struct WorkflowParserCheck {
 
         let workflow = try parse(#"""
         [
-            {"type":"assign","target":"${n}","value":"${1 + 2 * 3}"},
+            {"type":"assign","label":"compute counter","target":"${n}","value":"${1 + 2 * 3}"},
             {"type":"if","condition":"${n == 7}","then":[{"type":"script","script_name":"child.json"}]},
             {"type":"ocr_text","roi":[0,0,20,20],"output":"${text}"},
             {"type":"template_match","roi":[0,0,20,20],"template":"button.png","threshold":0.8,"output":"${match}"},
             {"type":"if","condition":"${match.found}","then":[{"type":"tap","point":"${match.point}","duration_ms":1}]},
+            {"type":"drag","from":[1,2],"to":[3,4],"duration_ms":1},
             {"type":"if","condition":"${false && match.missing}","then":[{"type":"script","script_name":"wrong.json"}]},
             {"type":"return"},
             {"type":"script","script_name":"also-wrong.json"}
@@ -26,7 +27,7 @@ struct WorkflowParserCheck {
 
         var scripts: [String] = []
         var visionKinds: [VisionKind] = []
-        var touches: [Bool] = []
+        var touches: [WorkflowTouchAction] = []
         let logLock = NSLock()
         var logs: [String] = []
         let runner = WorkflowRunner(checkCancelled: {}, script: { name, _ in scripts.append(name) },
@@ -35,7 +36,7 @@ struct WorkflowParserCheck {
                 if kind == .ocrText { return .string("确认") }
                 precondition(parameters["template"] == .string("button.png"))
                 return .object(["found": .bool(true), "point": .array([.number(10), .number(12)])])
-            }, touch: { _, down in touches.append(down) }, log: {
+            }, touch: { _, action in touches.append(action) }, log: {
                 logLock.lock()
                 logs.append($0)
                 logLock.unlock()
@@ -43,9 +44,45 @@ struct WorkflowParserCheck {
         try runner.run(workflow)
         precondition(scripts == ["child.json"])
         precondition(visionKinds == [.ocrText, .templateMatch])
-        precondition(touches == [true, false])
+        precondition(touches == [.down, .up, .down, .move, .up])
         precondition(logs.contains("[Workflow] Step: type=ocr_text, output=text, text=\("确认".debugDescription)"))
         precondition(logs.contains("[Workflow] Condition: type=if, matched=true"))
+
+        let drag = try parse(#"[{"type":"drag","from":[1,2],"to":[3,4],"duration_ms":100}]"#)
+        var cancellationChecks = 0
+        var cancelledTouches: [WorkflowTouchAction] = []
+        let cancelledDrag = WorkflowRunner(checkCancelled: {
+            cancellationChecks += 1
+            if cancellationChecks == 2 { throw replayError("cancelled") }
+        }, script: { _, _ in }, vision: { _, _, _, _ in .null },
+           touch: { _, action in cancelledTouches.append(action) }, log: { _ in })
+        do { try cancelledDrag.run(drag); fatalError("Drag cancellation ignored") } catch { }
+        precondition(cancelledTouches == [.down, .move, .up], "Cancelled drag must release touch")
+
+        let typedOCR = try parse(#"""
+        [
+            {"type":"ocr_text","roi":"${roi}","output":"${whole:int}"},
+            {"type":"ocr_text","roi":"${roi}","output":"${decimal:double}"},
+            {"type":"if","condition":"${whole == 42 && decimal == 3.5}","then":[{"type":"script","script_name":"typed.json"}]}
+        ]
+        """#, vars: #"{"roi":[1,2,3,4],"whole":0,"decimal":0}"#)
+        var recognized = [" 42\n", "3.5"]
+        var typedROIs: [[Double]] = []
+        var typedPassed = false
+        let typedRunner = WorkflowRunner(checkCancelled: {}, script: { name, _ in typedPassed = name == "typed.json" },
+            vision: { _, roi, _, _ in typedROIs.append(roi); return .string(recognized.removeFirst()) },
+            touch: { _, _ in }, log: { _ in })
+        try typedRunner.run(typedOCR)
+        precondition(typedROIs == [[1, 2, 3, 4], [1, 2, 3, 4]] && typedPassed)
+        let invalidNumber = try parse(#"[{"type":"ocr_text","roi":[0,0,1,1],"output":"${n:int}"}]"#)
+        let invalidNumberRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in },
+            vision: { _, _, _, _ in .string("not a number") }, touch: { _, _ in }, log: { _ in })
+        do { try invalidNumberRunner.run(invalidNumber); fatalError("Nonnumeric OCR accepted") }
+        catch { precondition(error.localizedDescription.contains("有效数字")) }
+        let fractionalIntRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in },
+            vision: { _, _, _, _ in .string("1.5") }, touch: { _, _ in }, log: { _ in })
+        do { try fractionalIntRunner.run(invalidNumber); fatalError("Fractional int OCR accepted") }
+        catch { precondition(error.localizedDescription.contains("整数")) }
 
         let contains = try parse(#"""
         [
@@ -107,14 +144,19 @@ struct WorkflowParserCheck {
         rejects(#"[{"type":"continue"}]"#, containing: "enclosing loop")
         rejects(#"[{"type":"monitor","interval_ms":500,"timeout_ms":1000,"check":[{"type":"ocr_text","roi":[0,0,10,10],"output":"${text}"}],"until":false,"steps":[{"type":"assign","target":"${text}","value":"x"}]}]"#, containing: "both write: text")
         rejects(#"[{"type":"wait","wait_ms":1,"typo":true}]"#, containing: "Unknown field")
+        rejects(#"[{"type":"wait","label":1,"wait_ms":1}]"#, containing: "Expected a string")
         rejects(#"[{"type":"wait"}]"#, containing: "Missing required field")
         rejects(#"[{"type":"wait","wait_ms":true}]"#, containing: "Expected number")
         rejects(#"[{"type":"wait","wait_ms":-1}]"#, containing: "permitted range")
         rejects(#"[{"type":"wait","wait_ms":0.5}]"#, containing: "not an integer")
         rejects(#"[{"type":"tap","point":[1],"duration_ms":10}]"#, containing: "2 coordinates")
+        rejects(#"[{"type":"drag","from":[0,0],"to":[1],"duration_ms":10}]"#, containing: "2 coordinates")
+        rejects(#"[{"type":"drag","from":[0,0],"to":[1,1],"duration_ms":0}]"#, containing: "permitted range")
         rejects(#"[{"type":"ocr_text","roi":[0,0,0,10],"output":"${text}"}]"#, containing: "positive")
         rejects(#"[{"type":"template_match","roi":[0,0,10,10],"template":"t.png","threshold":1.1,"output":"${match}"}]"#, containing: "permitted range")
         rejects(#"[{"type":"skill_check","roi":[0,0,10,10],"model":"m.onnx","skill":"x","threshold":-0.1,"output":"${match}"}]"#, containing: "permitted range")
+        rejects(#"[{"type":"ocr_text","roi":[0,0,10,10],"output":"${text:bool}"}]"#, containing: "int or double")
+        rejects(#"[{"type":"skill_check","roi":[0,0,10,10],"model":"m.onnx","skill":"x","threshold":0,"output":"${match:int}"}]"#, containing: "only supported by ocr_text")
         rejects(#"[{"type":"script","script_name":""}]"#, containing: "nonempty")
         rejects(#"[{"type":"if","condition":"true","then":[]}]"#, containing: "Expected boolean")
         let expression = String(repeating: "!", count: 100) + "true"
@@ -122,6 +164,7 @@ struct WorkflowParserCheck {
 
         for bad in [
             #"{"version":4,"vars":{},"steps":[]}"#,
+            #"{"version":3,"label":false,"vars":{},"steps":[]}"#,
             #"{"version":3,"vars":{},"steps":[{"type":"unknown"}]}"#,
             #"{"version":3,"vars":{"bad-name":0},"steps":[]}"#
         ] {

@@ -2,12 +2,16 @@ import Foundation
 
 typealias WorkflowCancellationCheck = () throws -> Void
 
+enum WorkflowTouchAction: String {
+    case down, move, up
+}
+
 /// Executes one parsed workflow. Device and vision work stays in the host callbacks.
 struct WorkflowRunner {
     let checkCancelled: WorkflowCancellationCheck
     let script: (String, @escaping WorkflowCancellationCheck) throws -> Void
     let vision: (VisionKind, [Double], [String: JSONValue], WorkflowCancellationCheck) throws -> JSONValue
-    let touch: ([Double], Bool) throws -> Void
+    let touch: ([Double], WorkflowTouchAction) throws -> Void
     let log: (String) -> Void
 
     func run(_ workflow: Workflow) throws {
@@ -58,7 +62,7 @@ struct WorkflowRunner {
             var parameters: [String: JSONValue] = [:]
             for (name, input) in command.parameters { parameters[name] = try value(input, snapshot) }
             try validate(command.kind, parameters: parameters)
-            let result = try vision(command.kind, roi, parameters, check)
+            let result = try converted(vision(command.kind, roi, parameters, check), as: command.outputType)
             variables.set(command.output, to: result)
             if case .string(let text) = result {
                 log("[Workflow] Step: type=\(command.kind.rawValue), output=\(command.output), text=\(text.debugDescription)")
@@ -69,8 +73,19 @@ struct WorkflowRunner {
             let snapshot = variables.snapshot()
             let point = try coordinates(point, snapshot, count: 2)
             let duration = try milliseconds(duration, snapshot, minimum: 1)
-            try touch(point, true)
-            defer { try? touch(point, false) }
+            try touch(point, .down)
+            defer { try? touch(point, .up) }
+            try wait(milliseconds: duration, check: check)
+        case .drag(let from, let to, let duration):
+            let snapshot = variables.snapshot()
+            let from = try coordinates(from, snapshot, count: 2)
+            let to = try coordinates(to, snapshot, count: 2)
+            let duration = try milliseconds(duration, snapshot, minimum: 1)
+            var releasePoint = from
+            try touch(from, .down)
+            defer { try? touch(releasePoint, .up) }
+            try touch(to, .move)
+            releasePoint = to
             try wait(milliseconds: duration, check: check)
         case .wait(let duration):
             try wait(milliseconds: try milliseconds(duration, variables.snapshot(), minimum: 0), check: check)
@@ -228,6 +243,19 @@ struct WorkflowRunner {
 
     private func finite(_ number: Double) throws -> JSONValue {
         guard number.isFinite else { throw replayError("数值运算结果无效。") }
+        return .number(number)
+    }
+
+    private func converted(_ value: JSONValue, as type: VisionOutputType?) throws -> JSONValue {
+        guard let type else { return value }
+        guard case .string(let raw) = value else { throw replayError("typed ocr_text 需要文字识别结果。") }
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let number = Double(text), number.isFinite else { throw replayError("OCR 结果不是有效数字：\(raw)") }
+        if type == .int {
+            guard number.rounded() == number, abs(number) <= 9_007_199_254_740_991 else {
+                throw replayError("OCR 结果不是可精确表示的整数：\(raw)")
+            }
+        }
         return .number(number)
     }
 

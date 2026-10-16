@@ -48,10 +48,15 @@ public enum VisionKind: String, Equatable, Sendable {
     case circlePercentage = "circle_percentage"
 }
 
+public enum VisionOutputType: Equatable, Sendable {
+    case int, double
+}
+
 public struct VisionCommand: Equatable, Sendable {
     public let kind: VisionKind
     public let roi: Input
     public let output: String
+    public let outputType: VisionOutputType?
     /// Additional validated inputs: template, model, skill, profile, threshold.
     public let parameters: [String: Input]
 }
@@ -64,6 +69,7 @@ public indirect enum Step: Equatable, Sendable {
     case script(name: Input)
     case vision(VisionCommand)
     case tap(point: Input, duration: Input)
+    case drag(from: Input, to: Input, duration: Input)
     case wait(milliseconds: Input)
     case breakLoop, continueLoop, returnFromScript
 }

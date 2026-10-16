@@ -68,7 +68,7 @@
               "else": [
                 {
                   "type": "script",
-                  "script_name": "../common/combat_role_katixiya_flow.json"
+                  "script_name": "../common/combat_role_katixiya.json"
                 }
               ]
             }
@@ -76,7 +76,7 @@
         },
         {
           "type": "script",
-          "script_name": "pickup_flow.json"
+          "script_name": "pickup.json"
         },
         {
           "type": "script",
