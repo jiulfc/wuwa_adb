@@ -49,7 +49,6 @@
       display: flex; align-items: center; gap: 12px; padding: 10px 14px;
       border-bottom: 1px solid var(--line); background: var(--panel);
     }
-    h1 { margin: 0; font-size: 17px; white-space: nowrap; }
     .workflow-heading { min-width: 0; }
     #workflowLabel { margin-top: 2px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .toolbar { display: flex; gap: 7px; flex-wrap: wrap; }
@@ -123,7 +122,7 @@
     .step-list { display: flex; flex-direction: column; gap: 5px; }
     .step {
       border: 1px solid var(--line); border-left: 4px solid var(--step-color, var(--accent));
-      border-radius: 7px; padding: 6px; background: var(--panel);
+      border-radius: 7px; padding: 6px 6px 6px 3px; background: var(--panel);
     }
     .step.selected { box-shadow: 0 0 0 2px var(--accent); }
     .step[data-type="assign"] { --step-color: #38bdf8; }
@@ -142,7 +141,7 @@
     .step[data-type="return"] { --step-color: #94a3b8; }
     .step.drop-before { box-shadow: 0 -3px 0 var(--accent); }
     .step-head { display: flex; align-items: center; gap: 6px; min-height: 30px; }
-    .step-index { width: 30px; flex: 0 0 30px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+    .step-index { flex: 0 0 auto; margin-left: 8px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
     .drag-handle { cursor: grab; color: var(--muted); user-select: none; padding: 2px 4px; }
     .step-summary { flex: 1; min-width: 0; }
     .step-primary { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
@@ -155,13 +154,7 @@
     .step-branches { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
     .branch-button { padding: 3px 7px; color: var(--muted); font-size: 11px; background: var(--bg); }
     .step-actions {
-      display: flex; gap: 4px; margin-left: auto; opacity: 0; visibility: hidden;
-      pointer-events: none; transition: opacity .12s ease;
-    }
-    .step-head:hover .step-actions,
-    .step:focus > .step-head .step-actions,
-    .step-head:focus-within .step-actions {
-      opacity: 1; visibility: visible; pointer-events: auto;
+      display: flex; gap: 4px; margin-left: auto;
     }
     .icon { padding: 2px 7px; min-width: 27px; }
     .delete { color: var(--danger); }
@@ -192,7 +185,6 @@
 <body>
   <header>
     <div class="workflow-heading">
-      <h1>v3 Workflow Orchestrator</h1>
       <div id="workflowLabel" hidden></div>
     </div>
     <div class="toolbar" role="toolbar" aria-label="Workflow actions">
