@@ -12,11 +12,13 @@
         {
           "type": "assign",
           "target": "${counter}",
-          "value": "${counter + 1}"
+          "value": "${counter + 1}",
+          "label": "counter ++"
         },
         {
           "type": "script",
-          "script_name": "prepare.json"
+          "script_name": "prepare.json",
+          "label": "prepare"
         },
         {
           "type": "monitor",
@@ -26,7 +28,12 @@
           "check": [
             {
               "type": "ocr_text",
-              "roi": [222, 397, 319, 49],
+              "roi": [
+                222,
+                397,
+                319,
+                49
+              ],
               "output": "${stop_text}"
             }
           ],
@@ -35,15 +42,18 @@
               "type": "script",
               "script_name": "../common/combat_role_katixiya.json"
             }
-          ]
+          ],
+          "label": "if not finish, combat until finish"
         },
         {
           "type": "script",
-          "script_name": "pickup.json"
+          "script_name": "pickup.json",
+          "label": "pickup"
         },
         {
           "type": "script",
-          "script_name": "finish.json"
+          "script_name": "finish.json",
+          "label": "done"
         }
       ]
     }

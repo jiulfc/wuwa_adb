@@ -14,20 +14,29 @@
         {
           "type": "assign",
           "target": "${loop_count}",
-          "value": "${loop_count + 1}"
+          "value": "${loop_count + 1}",
+          "label": "Increase loop count"
         },
         {
           "type": "script",
-          "script_name": "prepare_step_1.json"
+          "script_name": "prepare_step_1.json",
+          "label": "prepare"
         },
         {
           "type": "wait",
-          "wait_ms": 1000
+          "wait_ms": 1000,
+          "label": "wait 1s"
         },
         {
           "type": "ocr_text",
-          "roi": [1936, 875, 100, 46],
-          "output": "${confirm_text}"
+          "roi": [
+            1936,
+            875,
+            100,
+            46
+          ],
+          "output": "${confirm_text}",
+          "label": "check confirm need or not"
         },
         {
           "type": "if",
@@ -35,18 +44,24 @@
           "then": [
             {
               "type": "tap",
-              "point": [1986, 898],
+              "point": [
+                1986,
+                898
+              ],
               "duration_ms": 100
             },
             {
               "type": "wait",
               "wait_ms": 1000
             }
-          ]
+          ],
+          "else": [],
+          "label": "click confirm if needed"
         },
         {
           "type": "script",
-          "script_name": "prepare_step_2.json"
+          "script_name": "prepare_step_2.json",
+          "label": "start"
         },
         {
           "type": "monitor",
@@ -55,8 +70,14 @@
           "check": [
             {
               "type": "ocr_text",
-              "roi": [216, 400, 174, 46],
-              "output": "${battle_text}"
+              "roi": [
+                216,
+                400,
+                174,
+                46
+              ],
+              "output": "${battle_text}",
+              "label": "battle done text"
             }
           ],
           "until": "${battle_text contains '领取' || battle_text contains '明日'}",
@@ -68,19 +89,24 @@
               "else": [
                 {
                   "type": "script",
-                  "script_name": "../common/combat_role_katixiya.json"
+                  "script_name": "../common/combat_role_katixiya.json",
+                  "label": "do combat"
                 }
-              ]
+              ],
+              "label": "check battle done or not"
             }
-          ]
+          ],
+          "label": "combat"
         },
         {
           "type": "script",
-          "script_name": "pickup.json"
+          "script_name": "pickup.json",
+          "label": "pickup"
         },
         {
           "type": "script",
-          "script_name": "finish.json"
+          "script_name": "finish.json",
+          "label": "finish"
         }
       ]
     }
