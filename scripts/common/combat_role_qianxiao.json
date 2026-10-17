@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "label": "opportunistic S, R -> E->A,A,A,A, Heavy A",
+  "label": "opportunistic S; priority R, E, then A,A,A,A,A, Heavy A",
   "vars": {
     "cycle": 0,
     "max_cycles": 200,
@@ -50,76 +50,44 @@
           "else": []
         },
         {
+          "type": "skill_check",
+          "label": "Check R usable",
+          "roi": "${r_roi}",
+          "model": "default",
+          "skill": "R",
+          "threshold": 0,
+          "output": "${skill_state}"
+        },
+        {
           "type": "if",
-          "label": "R at combo step 0",
-          "condition": "${combo_step == 0}",
+          "label": "Use R first",
+          "condition": "${skill_state.state == 'usable'}",
           "then": [
             {
+              "type": "tap",
+              "point": "${skill_state.point}",
+              "duration_ms": 100
+            }
+          ],
+          "else": [
+            {
               "type": "skill_check",
-              "label": "Check R usable",
-              "roi": "${r_roi}",
+              "label": "Check E usable",
+              "roi": "${e_roi}",
               "model": "default",
-              "skill": "R",
+              "skill": "E",
               "threshold": 0,
               "output": "${skill_state}"
             },
             {
               "type": "if",
-              "label": "Use R or restart",
+              "label": "Use E second",
               "condition": "${skill_state.state == 'usable'}",
               "then": [
                 {
                   "type": "tap",
                   "point": "${skill_state.point}",
                   "duration_ms": 100
-                },
-                { "type": "assign", "target": "${combo_step}", "value": 1 }
-              ],
-              "else": [
-                {
-                  "type": "assign",
-                  "label": "Restart combo",
-                  "target": "${combo_step}",
-                  "value": 0
-                }
-              ]
-            }
-          ],
-          "else": [
-            {
-              "type": "if",
-              "label": "E at combo step 1",
-              "condition": "${combo_step == 1}",
-              "then": [
-                {
-                  "type": "skill_check",
-                  "label": "Check E usable",
-                  "roi": "${e_roi}",
-                  "model": "default",
-                  "skill": "E",
-                  "threshold": 0,
-                  "output": "${skill_state}"
-                },
-                {
-                  "type": "if",
-                  "label": "Use E or restart",
-                  "condition": "${skill_state.state == 'usable'}",
-                  "then": [
-                    {
-                      "type": "tap",
-                      "point": "${skill_state.point}",
-                      "duration_ms": 100
-                    },
-                    { "type": "assign", "target": "${combo_step}", "value": 2 }
-                  ],
-                  "else": [
-                    {
-                      "type": "assign",
-                      "label": "Restart combo",
-                      "target": "${combo_step}",
-                      "value": 0
-                    }
-                  ]
                 }
               ],
               "else": [
@@ -139,8 +107,8 @@
                   "then": [
                     {
                       "type": "if",
-                      "label": "A at combo steps 2 through 5",
-                      "condition": "${combo_step < 6}",
+                      "label": "A at combo steps 0 through 4",
+                      "condition": "${combo_step < 5}",
                       "then": [
                         {
                           "type": "tap",
@@ -156,7 +124,7 @@
                       "else": [
                         {
                           "type": "tap",
-                          "label": "Heavy A at combo step 6",
+                          "label": "Heavy A at combo step 5",
                           "point": "${skill_state.point}",
                           "duration_ms": 1200
                         },
@@ -183,7 +151,7 @@
           ]
         },
         { "type": "assign", "target": "${cycle}", "value": "${cycle + 1}" },
-        { "type": "wait", "wait_ms": 500 }
+        { "type": "wait", "wait_ms": 100 }
       ]
     }
   ]

@@ -1,0 +1,165 @@
+{
+  "version": 3,
+  "vars": {
+    "phase": 0,
+    "remaining_ms": 0,
+    "move_to": [501, 1080],
+    "pickup_text": "",
+    "pickup_region": 0
+  },
+  "steps": [
+    {
+      "type": "ocr_text",
+      "roi": [2041, 589, 111, 46],
+      "output": "${pickup_text}"
+    },
+    {
+      "type": "if",
+      "condition": "${pickup_text contains '吸收'}",
+      "then": [
+        {"type": "assign", "target": "${pickup_region}", "value": 1}
+      ],
+      "else": [
+        {
+          "type": "ocr_text",
+          "roi": [2041, 715, 111, 46],
+          "output": "${pickup_text}"
+        },
+        {
+          "type": "if",
+          "condition": "${pickup_text contains '吸收'}",
+          "then": [
+            {"type": "assign", "target": "${pickup_region}", "value": 2}
+          ]
+        }
+      ]
+    },
+    {
+      "type": "while",
+      "condition": "${phase < 21 && pickup_region == 0}",
+      "steps": [
+        {
+          "type": "if",
+          "condition": "${phase == 0}",
+          "then": [
+            {"type": "assign", "target": "${move_to}", "value": [501, 880]},
+            {"type": "assign", "target": "${remaining_ms}", "value": 1000}
+          ],
+          "else": [
+            {
+              "type": "if",
+              "condition": "${phase == 1}",
+              "then": [
+                {"type": "assign", "target": "${move_to}", "value": [301, 1080]},
+                {"type": "assign", "target": "${remaining_ms}", "value": 2000}
+              ],
+              "else": [
+                {
+                  "type": "if",
+                  "condition": "${phase % 2 != 0}",
+                  "then": [
+                    {"type": "assign", "target": "${move_to}", "value": [501, 1280]},
+                    {"type": "assign", "target": "${remaining_ms}", "value": 300}
+                  ],
+                  "else": [
+                    {
+                      "type": "if",
+                      "condition": "${phase % 4 == 2}",
+                      "then": [
+                        {"type": "assign", "target": "${move_to}", "value": [701, 1080]}
+                      ],
+                      "else": [
+                        {"type": "assign", "target": "${move_to}", "value": [301, 1080]}
+                      ]
+                    },
+                    {"type": "assign", "target": "${remaining_ms}", "value": 4000}
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "while",
+          "condition": "${remaining_ms > 0 && pickup_region == 0}",
+          "steps": [
+            {
+              "type": "if",
+              "condition": "${remaining_ms > 250}",
+              "then": [
+                {
+                  "type": "drag",
+                  "from": [501, 1080],
+                  "to": "${move_to}",
+                  "duration_ms": 250
+                },
+                {
+                  "type": "assign",
+                  "target": "${remaining_ms}",
+                  "value": "${remaining_ms - 250}"
+                }
+              ],
+              "else": [
+                {
+                  "type": "drag",
+                  "from": [501, 1080],
+                  "to": "${move_to}",
+                  "duration_ms": "${remaining_ms}"
+                },
+                {"type": "assign", "target": "${remaining_ms}", "value": 0}
+              ]
+            },
+            {"type": "wait", "wait_ms": 150},
+            {
+              "type": "ocr_text",
+              "roi": [2041, 589, 111, 46],
+              "output": "${pickup_text}"
+            },
+            {
+              "type": "if",
+              "condition": "${pickup_text contains '吸收'}",
+              "then": [
+                {"type": "assign", "target": "${pickup_region}", "value": 1}
+              ],
+              "else": [
+                {
+                  "type": "ocr_text",
+                  "roi": [2041, 715, 111, 46],
+                  "output": "${pickup_text}"
+                },
+                {
+                  "type": "if",
+                  "condition": "${pickup_text contains '吸收'}",
+                  "then": [
+                    {"type": "assign", "target": "${pickup_region}", "value": 2}
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "assign",
+          "target": "${phase}",
+          "value": "${phase + 1}"
+        }
+      ]
+    },
+    {
+      "type": "if",
+      "condition": "${pickup_region == 1}",
+      "then": [
+        {"type": "tap", "point": [2096.5, 612], "duration_ms": 100}
+      ],
+      "else": [
+        {
+          "type": "if",
+          "condition": "${pickup_region == 2}",
+          "then": [
+            {"type": "tap", "point": [2096.5, 738], "duration_ms": 100}
+          ]
+        }
+      ]
+    }
+  ]
+}

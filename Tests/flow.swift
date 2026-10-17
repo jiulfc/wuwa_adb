@@ -137,24 +137,40 @@ struct FlowCheck {
                 return .whileLoop(condition: condition, steps: steps.map(fast))
             case .conditional(let condition, let yes, let no):
                 return .conditional(condition: condition, then: yes.map(fast), otherwise: no.map(fast))
-            case .tap(let point, _): return .tap(point: point, duration: .literal(.number(1)))
+            case .tap(let point, let duration):
+                let taggedPoint: Input = duration == .literal(.number(1200))
+                    ? .literal(.array([.number(1200), .number(1200)])) : point
+                return .tap(point: taggedPoint, duration: .literal(.number(1)))
             case .wait: return .wait(milliseconds: .literal(.number(0)))
             default: return step
             }
         }
         var qianxiaoVariables = qianxiao.workflow.variables
-        qianxiaoVariables["max_cycles"] = .number(7)
+        qianxiaoVariables["max_cycles"] = .number(10)
         let qianxiaoCheck = Workflow(version: 3, variables: qianxiaoVariables,
                                      steps: qianxiao.workflow.steps.map(fast))
         var qianxiaoSkills: [String] = []
+        var qianxiaoRChecks = 0
+        var qianxiaoEChecks = 0
+        var qianxiaoHeavyTaps = 0
         let qianxiaoRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in }, vision: { _, _, parameters, _ in
             guard case .string(let skill) = parameters["skill"] else { fatalError("Missing Qianxiao skill") }
             qianxiaoSkills.append(skill)
-            return .object(["state": .string("usable"), "point": .array([.number(1), .number(1)])])
-        }, touch: { _, _ in }, log: { _ in })
+            if skill == "R" { qianxiaoRChecks += 1 }
+            if skill == "E" { qianxiaoEChecks += 1 }
+            let usable = skill == "R" ? [2, 6].contains(qianxiaoRChecks)
+                : skill == "E" ? [2, 6].contains(qianxiaoEChecks) : true
+            return .object(["state": .string(usable ? "usable" : "unusable"),
+                            "point": .array([.number(1), .number(1)])])
+        }, touch: { point, action in
+            if action == .down && point == [1200, 1200] { qianxiaoHeavyTaps += 1 }
+        }, log: { _ in })
         try qianxiaoRunner.run(qianxiaoCheck)
-        precondition(qianxiaoSkills == ["S", "R", "S", "E", "S", "A", "S", "A",
-                                       "S", "A", "S", "A", "S", "A"])
+        precondition(qianxiaoSkills.filter { $0 == "S" }.count == 10 &&
+                     qianxiaoSkills.filter { $0 == "R" }.count == 10 &&
+                     qianxiaoSkills.filter { $0 == "E" }.count == 8 &&
+                     qianxiaoSkills.filter { $0 == "A" }.count == 6 &&
+                     qianxiaoHeavyTaps == 1)
 
         print("V3 recordings, DSL fixtures, nested flows, cancellation, errors, and cycles passed")
     }

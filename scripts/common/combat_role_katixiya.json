@@ -12,8 +12,8 @@
     "s_tap_ms": 100,
     "a_1_tap_ms": 100,
     "a_2_tap_ms": 100,
-    "a_3_tap_ms": 100,
-    "heavy_a_tap_ms": 1200,
+    "a_3_tap_ms": 200,
+    "heavy_a_tap_ms": 1000,
     "e_tap_ms": 100,
     "a_4_tap_ms": 100,
     "current_tap_ms": 100,
@@ -243,8 +243,8 @@
         },
         {
           "type": "wait",
-          "wait_ms": 500,
-          "label": "wait 500 ms"
+          "wait_ms": 100,
+          "label": "wait 100 ms"
         }
       ]
     }

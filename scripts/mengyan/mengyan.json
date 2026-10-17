@@ -1,0 +1,46 @@
+{
+  "version": 3,
+  "vars": {},
+  "steps": [
+    {
+      "type": "script",
+      "script_name": "mengyan_box_chaohenyantan/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    },
+    {
+      "type": "script",
+      "script_name": "mengyan_box_qianyichendao/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    },
+    {
+      "type": "script",
+      "script_name": "mengyan_box_sanwangfeng/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    },
+    {
+      "type": "script",
+      "script_name": "mengyan_box_shoushidi/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    },
+    {
+      "type": "script",
+      "script_name": "mengyan_box_suiboshi/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    }
+  ]
+}
