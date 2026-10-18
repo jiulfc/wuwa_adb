@@ -3,7 +3,7 @@ import Foundation
 @main
 struct KatixiyaOptimize1Check {
     static func main() throws {
-        let data = try Data(contentsOf: URL(fileURLWithPath: "scripts/common/combat_role_katixiya_optimize_1.json"))
+        let data = try Data(contentsOf: URL(fileURLWithPath: "scripts/common/combat_role_katixiya.json"))
         let workflow = try WorkflowParser().parse(data)
 
         func fast(_ step: Step) -> Step {
@@ -19,7 +19,7 @@ struct KatixiyaOptimize1Check {
 
         var variables = workflow.variables
         variables["max_cycles"] = .number(7)
-        for name in ["lock_tap_ms", "s_tap_ms", "a_1_tap_ms", "a_2_tap_ms", "a_3_tap_ms",
+        for name in ["lock_tap_ms", "s_tap_ms", "a_1_tap_ms", "a_2_tap_ms", "a_3_tap_ms", "a_3_wait_ms",
                      "heavy_a_tap_ms", "e_tap_ms", "a_4_tap_ms", "current_tap_ms"] {
             variables[name] = .number(1)
         }

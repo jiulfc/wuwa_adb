@@ -10,12 +10,13 @@
     "a_point": [2571, 1123],
     "lock_tap_ms": 100,
     "s_tap_ms": 100,
-    "a_1_tap_ms": 100,
-    "a_2_tap_ms": 100,
-    "a_3_tap_ms": 200,
-    "heavy_a_tap_ms": 1000,
-    "e_tap_ms": 100,
-    "a_4_tap_ms": 100,
+    "a_1_tap_ms": 90,
+    "a_2_tap_ms": 90,
+    "a_3_tap_ms": 90,
+    "a_3_wait_ms": 500,
+    "heavy_a_tap_ms": 800,
+    "e_tap_ms": 75,
+    "a_4_tap_ms": 170,
     "current_tap_ms": 100,
     "a_roi": [2448, 1000, 240, 240],
     "s_roi": [2276, 936, 72, 72],
@@ -128,6 +129,18 @@
                   "type": "tap",
                   "point": "${skill_state.point}",
                   "duration_ms": "${current_tap_ms}"
+                },
+                {
+                  "type": "if",
+                  "label": "Wait after A3 before Heavy A",
+                  "condition": "${combo_step == 2}",
+                  "then": [
+                    {
+                      "type": "wait",
+                      "wait_ms": "${a_3_wait_ms}"
+                    }
+                  ],
+                  "else": []
                 },
                 {
                   "type": "if",

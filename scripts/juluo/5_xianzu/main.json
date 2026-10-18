@@ -38,7 +38,7 @@
           "steps": [
             {
               "type": "script",
-              "script_name": "../../common/combat_team_kxq.json"
+              "script_name": "../../common/combat_role_katixiya.json"
             }
           ]
         },

@@ -114,22 +114,31 @@ struct FlowCheck {
         }
         precondition(prepare.events.count == 121 && pickup.workflow.variables["phase"] == .number(0))
         precondition(katixiya.workflow.variables["e_roi"] == .array([.number(2276), .number(1188), .number(144), .number(144)]))
+        precondition(katixiya.workflow.variables["a_3_wait_ms"] == .number(1125))
         precondition(qianxiao.workflow.variables["r_roi"] == .array([.number(2124), .number(1084), .number(120), .number(120)]))
-        precondition(team.workflow.variables["switch_role_point"] == .array([.number(2870), .number(360)]))
+        precondition(team.workflow.variables["switch_role_point"] == .array([.number(2866), .number(556)]))
         guard case .whileLoop(_, let teamSteps) = team.workflow.steps.first else { fatalError("Missing team loop") }
-        precondition(teamSteps.count == 6)
-        guard case .runFor(let katDuration, let katBody) = teamSteps[0],
-              case .script(let katScript) = katBody.first,
-              case .tap = teamSteps[1], case .wait = teamSteps[2],
-              case .runFor(let qianDuration, let qianBody) = teamSteps[3],
-              case .script(let qianScript) = qianBody.first,
-              case .tap = teamSteps[4], case .wait = teamSteps[5] else {
+        precondition(teamSteps.count == 5)
+        guard case .assign(target: "full_checks", value: .literal(.number(0))) = teamSteps[0],
+              case .runUntil(let interval, _, let check, let until, let body) = teamSteps[1],
+              case .whileLoop(_, let roleLoop) = body.first,
+              case .script(.expression(.variable("role_script"))) = roleLoop.first,
+              case .tap = teamSteps[2], case .wait(let switchWait) = teamSteps[3],
+              case .conditional(_, let qianxiaoBranch, let katixiyaBranch) = teamSteps[4],
+              case .assign(target: "role_script", value: .literal(.string("combat_role_qianxiao.json"))) = qianxiaoBranch.first,
+              case .assign(target: "role_script", value: .literal(.string("combat_role_katixiya.json"))) = katixiyaBranch.first else {
             fatalError("Invalid team combat rotation")
         }
-        let roleDuration: Input = .literal(.number(16000))
-        precondition(katDuration == roleDuration && qianDuration == roleDuration)
-        precondition(katScript == .literal(.string("combat_role_katixiya.json")) &&
-                     qianScript == .literal(.string("combat_role_qianxiao.json")))
+        let checkInterval: Input = .literal(.number(500))
+        let twiceFull: Input = .expression(.binary(">=", .variable("full_checks"), .literal(.number(2))))
+        precondition(interval == checkInterval && until == twiceFull && switchWait == .literal(.number(1000)))
+        guard check.count == 2,
+              case .vision(let circle) = check[0], circle.kind == .circlePercentage,
+              case .conditional(_, let full, let notFull) = check[1],
+              case .assign(target: "full_checks", value: .expression(.binary("+", .variable("full_checks"), .literal(.number(1))))) = full.first,
+              case .assign(target: "full_checks", value: .literal(.number(0))) = notFull.first else {
+            fatalError("Circle checks must require two consecutive full readings")
+        }
 
         func fast(_ step: Step) -> Step {
             switch step {
