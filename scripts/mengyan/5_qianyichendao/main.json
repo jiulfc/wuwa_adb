@@ -16,7 +16,8 @@
         },
         {
           "type": "script",
-          "script_name": "prepare.json"
+          "script_name": "prepare.json",
+          "label": "Prepare"
         },
         {
           "type": "run_until",
@@ -26,26 +27,37 @@
           "check": [
             {
               "type": "ocr_text",
-              "roi": [222, 397, 319, 49],
-              "output": "${stop_text}"
+              "roi": [
+                222,
+                397,
+                319,
+                49
+              ],
+              "output": "${stop_text}",
+              "label": "stop text check"
             }
           ],
           "steps": [
             {
               "type": "script",
-              "script_name": "../../common/combat_role_katixiya.json"
+              "script_name": "../../common/combat_role_katixiya.json",
+              "label": "Battle"
             }
-          ]
+          ],
+          "label": "run until stop text"
         },
         {
           "type": "script",
-          "script_name": "pickup.json"
+          "script_name": "pickup.json",
+          "label": "Pickup"
         },
         {
           "type": "script",
-          "script_name": "finish.json"
+          "script_name": "finish.json",
+          "label": "Finish"
         }
-      ]
+      ],
+      "label": "Loop"
     }
   ]
 }

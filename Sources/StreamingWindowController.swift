@@ -539,7 +539,14 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                     "point": .array([.number(roi[0] + roi[2] / 2),
                                                      .number(roi[1] + roi[3] / 2)])
                                 ])
-                            case .templateMatch, .circlePercentage:
+                            case .circlePercentage:
+                                guard parameters["profile"] == .string("default") else {
+                                    throw replayError("circle_percentage currently only supports profile=default.")
+                                }
+                                let percentage = try CirclePercentageDetector.percentage(in: workflowFrame, roi: roi)
+                                try localCheck()
+                                return .number(percentage)
+                            case .templateMatch:
                                 throw replayError("当前设备回放尚不支持 \(kind.rawValue)；需要对应的已校准视觉后端。")
                             }
                         }, touch: { point, action in

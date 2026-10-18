@@ -92,11 +92,36 @@ open AdbQuick.app          # 或双击 .app
 
 DSL 回放支持 `assign`、`while`、`if`、`run_for`、`run_until`、`script`、`tap`、`drag`、`wait`、`break`、`continue`、`return` 和受限表达式。`run_for` 在 `duration_ms` 后取消其 `steps` 并继续；`run_until` 运行 `steps`，同时每隔 `check_every_ms` 执行 `check`，`until` 匹配后取消 `steps` 并继续，达到 `timeout_ms` 则报错。`vars` 可以保存 JSON 数组，ROI、点位等字段可直接使用 `"${roi}"` 引用。`ocr_text` 默认返回字符串；`output` 使用 `${name:int}` 或 `${name:double}` 时，会把去除首尾空白的完整 OCR 结果解析为数字，空值或非数字会终止流程。
 
+`circle_percentage` 的 `default` profile 读取固定 72×72 ROI 内半径 30–36 px 的绿色圆环，返回 `0.0`–`1.0`。例如检查左上角为 `(1270, 1270)` 的圆环是否已满：
+
+```json
+{
+  "version": 3,
+  "vars": { "circle_percent": 0 },
+  "steps": [
+    {
+      "type": "circle_percentage",
+      "roi": [1270, 1270, 72, 72],
+      "profile": "default",
+      "output": "${circle_percent}"
+    },
+    {
+      "type": "if",
+      "condition": "${circle_percent >= 0.9}",
+      "then": [{ "type": "return" }]
+    }
+  ]
+}
+```
+
+执行时会在调试控制台和 `/tmp/adbquick.log` 输出例如
+`[Workflow] Step: type=circle_percentage, output=circle_percent, percentage=0.3611111111111111`。
+
 所有 version 3 文件的顶层、DSL 步骤、`run` 对象条目和录制事件都可以添加可选字符串 `label` 作为注释。`label` 不影响执行。
 
 子脚本路径相对于引用文件，变量在每个 DSL 文件内局部生效；`run_for` / `run_until` 会取消并等待已结束的分支。坐标使用当前设备方向下的像素坐标。`drag` 的 `from` / `to` 是起止像素坐标，`duration_ms` 是移到终点后的持续时间；完成、取消或出错都会释放触摸。
 
-当前设备适配器实现了 `ocr_text` 和 `skill_check`。`skill_check` 使用设置中的 `wuwa_classify` 项目，当前要求 `model: "default"` 和 `threshold: 0`；`template_match` 与 `circle_percentage` 仍会明确报错。
+当前设备适配器实现了 `ocr_text`、`skill_check` 和 `circle_percentage`。`skill_check` 使用设置中的 `wuwa_classify` 项目，当前要求 `model: "default"` 和 `threshold: 0`；`circle_percentage` 当前要求 `profile: "default"` 和 72×72 ROI；`template_match` 仍会明确报错。
 
 ### 流程组合
 
@@ -161,6 +186,11 @@ swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-workflow-c
   Sources/Script.swift Sources/FlowScript.swift Sources/TextStopCondition.swift \
   Tests/WorkflowParserTests.swift
 /tmp/adbquick-workflow-check
+
+swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-circle-check \
+  Sources/WorkflowModel.swift Sources/CirclePercentageDetector.swift \
+  Tests/CirclePercentageTests.swift
+/tmp/adbquick-circle-check rect.png
 ```
 
 包括真实 OCR 的原有检查：

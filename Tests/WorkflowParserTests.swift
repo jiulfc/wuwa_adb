@@ -48,6 +48,20 @@ struct WorkflowParserCheck {
         precondition(logs.contains("[Workflow] Step: type=ocr_text, output=text, text=\("确认".debugDescription)"))
         precondition(logs.contains("[Workflow] Condition: type=if, matched=true"))
 
+        let circle = try parse(#"[{"type":"circle_percentage","roi":[1270,1270,72,72],"profile":"default","output":"${n}"}]"#)
+        let circleRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in },
+            vision: { kind, roi, parameters, _ in
+                precondition(kind == .circlePercentage && roi == [1270, 1270, 72, 72])
+                precondition(parameters["profile"] == .string("default"))
+                return .number(0.4)
+            }, touch: { _, _ in }, log: {
+                logLock.lock()
+                logs.append($0)
+                logLock.unlock()
+            })
+        try circleRunner.run(circle)
+        precondition(logs.contains("[Workflow] Step: type=circle_percentage, output=n, percentage=0.4"))
+
         let drag = try parse(#"[{"type":"drag","from":[1,2],"to":[3,4],"duration_ms":100}]"#)
         var cancellationChecks = 0
         var cancelledTouches: [WorkflowTouchAction] = []

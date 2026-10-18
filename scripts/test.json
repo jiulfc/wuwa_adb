@@ -1,0 +1,25 @@
+{
+  "version": 3,
+  "label": "Live circle percentage test",
+  "vars": {
+    "circle_percent": 0
+  },
+  "steps": [
+    {
+      "type": "circle_percentage",
+      "label": "Measure and log the green ring",
+      "roi": [1270, 1270, 72, 72],
+      "profile": "default",
+      "output": "${circle_percent}"
+    },
+    {
+      "type": "if",
+      "condition": "${circle_percent >= 0.9}",
+      "then": [
+        {
+          "type": "return"
+        }
+      ]
+    }
+  ]
+}

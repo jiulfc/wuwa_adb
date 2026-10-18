@@ -67,7 +67,9 @@ struct WorkflowRunner {
             try validate(command.kind, parameters: parameters)
             let result = try converted(vision(command.kind, roi, parameters, check), as: command.outputType)
             variables.set(command.output, to: result)
-            if case .string(let text) = result {
+            if command.kind == .circlePercentage, case .number(let percentage) = result {
+                log("[Workflow] Step: type=circle_percentage, output=\(command.output), percentage=\(percentage)")
+            } else if case .string(let text) = result {
                 log("[Workflow] Step: type=\(command.kind.rawValue), output=\(command.output), text=\(text.debugDescription)")
             } else {
                 log("[Workflow] Step: type=\(command.kind.rawValue), output=\(command.output), result=\(result)")
