@@ -89,7 +89,7 @@
               "else": [
                 {
                   "type": "script",
-                  "script_name": "../common/combat_role_katixiya.json",
+                  "script_name": "../../common/combat_role_katixiya.json",
                   "label": "do combat"
                 }
               ],

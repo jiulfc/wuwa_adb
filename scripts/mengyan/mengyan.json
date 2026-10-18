@@ -4,7 +4,7 @@
   "steps": [
     {
       "type": "script",
-      "script_name": "mengyan_box_chaohenyantan/main.json"
+      "script_name": "1_suiboshi/main.json"
     },
     {
       "type": "wait",
@@ -12,7 +12,7 @@
     },
     {
       "type": "script",
-      "script_name": "mengyan_box_qianyichendao/main.json"
+      "script_name": "2_sanwangfeng/main.json"
     },
     {
       "type": "wait",
@@ -20,7 +20,7 @@
     },
     {
       "type": "script",
-      "script_name": "mengyan_box_sanwangfeng/main.json"
+      "script_name": "3_chaohenyantan/main.json"
     },
     {
       "type": "wait",
@@ -28,7 +28,7 @@
     },
     {
       "type": "script",
-      "script_name": "mengyan_box_shoushidi/main.json"
+      "script_name": "4_shoushidi/main.json"
     },
     {
       "type": "wait",
@@ -36,7 +36,7 @@
     },
     {
       "type": "script",
-      "script_name": "mengyan_box_suiboshi/main.json"
+      "script_name": "5_qianyichendao/main.json"
     },
     {
       "type": "wait",

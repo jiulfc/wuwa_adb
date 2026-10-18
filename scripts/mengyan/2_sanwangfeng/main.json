@@ -40,7 +40,7 @@
           "steps": [
             {
               "type": "script",
-              "script_name": "../common/combat_role_katixiya.json"
+              "script_name": "../../common/combat_role_katixiya.json"
             }
           ],
           "label": "if not finish, combat until finish"

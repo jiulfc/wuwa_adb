@@ -1,0 +1,46 @@
+{
+  "version": 3,
+  "vars": {},
+  "steps": [
+    {
+      "type": "script",
+      "script_name": "1_mengshu/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    },
+    {
+      "type": "script",
+      "script_name": "2_luoyuan/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    },
+    {
+      "type": "script",
+      "script_name": "3_wangmang/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    },
+    {
+      "type": "script",
+      "script_name": "4_fusheng/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    },
+    {
+      "type": "script",
+      "script_name": "5_xianzu/main.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 5000
+    }
+  ]
+}
