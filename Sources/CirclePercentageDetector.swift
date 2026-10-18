@@ -50,7 +50,7 @@ enum CirclePercentageDetector {
                 let bin = min(Int(angle / 2), totals.count - 1)
                 totals[bin] += 1
                 let offset = (y * size + x) * 4
-                if isGreen(red: pixels[offset], green: pixels[offset + 1], blue: pixels[offset + 2]) {
+                if isTargetColor(red: pixels[offset], green: pixels[offset + 1], blue: pixels[offset + 2]) {
                     hits[bin] += 1
                 }
             }
@@ -66,22 +66,10 @@ enum CirclePercentageDetector {
         return Double(filled) / Double(valid)
     }
 
-    private static func isGreen(red: UInt8, green: UInt8, blue: UInt8) -> Bool {
+    private static func isTargetColor(red: UInt8, green: UInt8, blue: UInt8) -> Bool {
         let r = Double(red), g = Double(green), b = Double(blue)
         let maximum = max(r, g, b)
         let minimum = min(r, g, b)
-        let delta = maximum - minimum
-        guard maximum >= 60, delta > 0, delta / maximum >= 60.0 / 255 else { return false }
-
-        let hue: Double
-        if maximum == r {
-            hue = 60 * ((g - b) / delta).truncatingRemainder(dividingBy: 6)
-        } else if maximum == g {
-            hue = 60 * ((b - r) / delta + 2)
-        } else {
-            hue = 60 * ((r - g) / delta + 4)
-        }
-        let normalizedHue = hue < 0 ? hue + 360 : hue
-        return normalizedHue >= 110 && normalizedHue <= 190
+        return maximum >= 60 && (maximum - minimum) / maximum >= 0.3
     }
 }
