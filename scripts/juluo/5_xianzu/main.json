@@ -15,14 +15,19 @@
           "value": "${counter + 1}"
         },
         {
+          "label": "Reset Team",
+          "type": "script",
+          "script_name": "../../common/reset_team_kxq.json"
+        },
+        {
           "type": "script",
           "script_name": "prepare.json"
         },
         {
           "type": "run_until",
           "check_every_ms": 500,
-          "timeout_ms": 30000,
-          "until": "${stop_text contains '已' || stop_text contains '清'}",
+          "timeout_ms": 300000,
+          "until": "${stop_text contains '已' || stop_text contains '己清'}",
           "check": [
             {
               "type": "ocr_text",
@@ -33,13 +38,21 @@
           "steps": [
             {
               "type": "script",
-              "script_name": "../../common/combat_role_katixiya.json"
+              "script_name": "../../common/combat_team_kxq.json"
             }
           ]
         },
         {
           "type": "script",
+          "script_name": "before_pickup.json"
+        },
+        {
+          "type": "script",
           "script_name": "pickup.json"
+        },
+        {
+          "type": "wait",
+          "wait_ms": 2000
         },
         {
           "type": "script",

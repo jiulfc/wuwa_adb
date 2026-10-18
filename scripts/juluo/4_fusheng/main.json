@@ -21,8 +21,8 @@
         {
           "type": "run_until",
           "check_every_ms": 500,
-          "timeout_ms": 30000,
-          "until": "${stop_text contains '已' || stop_text contains '清'}",
+          "timeout_ms": 300000,
+          "until": "${stop_text contains '已' || stop_text contains '己清'}",
           "check": [
             {
               "type": "ocr_text",
@@ -40,6 +40,10 @@
         {
           "type": "script",
           "script_name": "pickup.json"
+        },
+        {
+          "type": "wait",
+          "wait_ms": 2000
         },
         {
           "type": "script",
