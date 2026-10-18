@@ -15,6 +15,11 @@
           "value": "${counter + 1}"
         },
         {
+          "label": "Reset Team",
+          "type": "script",
+          "script_name": "../../common/reset_team_kxq.json"
+        },
+        {
           "type": "script",
           "script_name": "prepare.json"
         },
