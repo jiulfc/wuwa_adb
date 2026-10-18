@@ -1,0 +1,114 @@
+{
+  "version": 3,
+  "vars": {
+    "loop_count": 0,
+    "max_loop_count": 20,
+    "battle_text": "",
+    "confirm_text": ""
+  },
+  "steps": [
+    {
+      "type": "while",
+      "condition": "${loop_count < max_loop_count}",
+      "steps": [
+        {
+          "type": "assign",
+          "target": "${loop_count}",
+          "value": "${loop_count + 1}",
+          "label": "Increase loop count"
+        },
+        {
+          "type": "script",
+          "script_name": "prepare_step_1.json",
+          "label": "prepare"
+        },
+        {
+          "type": "wait",
+          "wait_ms": 1000,
+          "label": "wait 1s"
+        },
+        {
+          "type": "ocr_text",
+          "roi": [
+            1936,
+            875,
+            100,
+            46
+          ],
+          "output": "${confirm_text}",
+          "label": "check confirm need or not"
+        },
+        {
+          "type": "if",
+          "condition": "${confirm_text == '确认'}",
+          "then": [
+            {
+              "type": "tap",
+              "point": [
+                1986,
+                898
+              ],
+              "duration_ms": 100
+            },
+            {
+              "type": "wait",
+              "wait_ms": 1000
+            }
+          ],
+          "else": [],
+          "label": "click confirm if needed"
+        },
+        {
+          "type": "script",
+          "script_name": "prepare_step_2.json",
+          "label": "start"
+        },
+        {
+          "type": "run_until",
+          "check_every_ms": 500,
+          "timeout_ms": 300000,
+          "check": [
+            {
+              "type": "ocr_text",
+              "roi": [
+                216,
+                400,
+                174,
+                46
+              ],
+              "output": "${battle_text}",
+              "label": "battle done text"
+            }
+          ],
+          "until": "${battle_text contains '领取' || battle_text contains '明日'}",
+          "steps": [
+            {
+              "type": "if",
+              "condition": "${battle_text contains '领取' || battle_text contains '明日'}",
+              "then": [],
+              "else": [
+                {
+                  "type": "script",
+                  "script_name": "../../common/combat_role_katixiya.json",
+                  "label": "do combat"
+                }
+              ],
+              "label": "check battle done or not"
+            }
+          ],
+          "label": "combat"
+        },
+        {
+          "type": "script",
+          "script_name": "pickup.json",
+          "label": "pickup"
+        },
+        {
+          "type": "script",
+          "script_name": "finish.json",
+          "label": "finish"
+        }
+      ]
+    }
+  ]
+}
