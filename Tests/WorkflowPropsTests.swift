@@ -42,7 +42,7 @@ struct WorkflowPropsCheck {
         let doc = try String(contentsOfFile: "scripts/json_dsl_schema.md", encoding: .utf8)
         let regex = try NSRegularExpression(pattern: "```json\n([\\s\\S]*?)\n```")
         let blocks = regex.matches(in: doc, range: NSRange(doc.startIndex..., in: doc))
-        precondition(blocks.count >= 3)
+        precondition(blocks.count == 1)
         for block in blocks {
             let json = String(doc[Range(block.range(at: 1), in: doc)!])
             _ = try WorkflowParser().parse(Data(json.utf8))

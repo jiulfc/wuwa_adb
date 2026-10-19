@@ -1,6 +1,278 @@
 # JSON DSL v3 Reference
 
-This document describes the executable `vars` / `steps` DSL accepted by `WorkflowParser` and the current device adapter. It is a format reference, not a JSON Schema validator. Unknown root and step fields are rejected. All examples below are complete, parseable workflows.
+This document describes the executable `vars` / `steps` DSL accepted by `WorkflowParser` and the current device adapter. It is a format reference, not a JSON Schema validator. Unknown root and step fields are rejected. The single demo below is a complete, parseable workflow; the tables document its fields and execution rules.
+
+## Full schema demo JSON
+
+One parseable workflow showing every step type, all command fields, props defaults and overrides, nested expressions, and all OCR output forms. This is a syntax catalog, not a ready-to-run device script: calibrate coordinates, provide `child.json` as described under [Passing props](#passing-props-to-a-child-script), and replace or remove `template_match`, which the device adapter does not implement. Numeric OCR also requires regions containing valid numbers.
+
+```json
+{
+  "version": 3,
+  "label": "Full DSL v3 demo",
+  "vars": {
+    "props": {
+      "rois": [
+        [
+          2041,
+          589,
+          111,
+          46
+        ]
+      ],
+      "expected_text": "吸收",
+      "wait_ms": 1000
+    },
+    "count": 0,
+    "text": "",
+    "number": 0,
+    "decimal": 0,
+    "done": false,
+    "match": null,
+    "skill": null,
+    "percentage": 0,
+    "button_rois": [
+      [
+        2041,
+        589,
+        111,
+        46
+      ],
+      [
+        2041,
+        715,
+        111,
+        46
+      ]
+    ],
+    "wanted_text": "吸收",
+    "index": 0
+  },
+  "steps": [
+    {
+      "type": "assign",
+      "target": "${count}",
+      "value": 0
+    },
+    {
+      "type": "while",
+      "condition": "${count < 3}",
+      "steps": [
+        {
+          "type": "assign",
+          "target": "${count}",
+          "value": "${count + 1}"
+        },
+        {
+          "type": "if",
+          "condition": "${count == 1}",
+          "then": [
+            {
+              "type": "continue"
+            }
+          ],
+          "else": []
+        },
+        {
+          "type": "break"
+        }
+      ]
+    },
+    {
+      "type": "while",
+      "condition": "${index < props.rois.count}",
+      "steps": [
+        {
+          "type": "ocr_text",
+          "roi": "${props.rois[index]}",
+          "output": "${text}"
+        },
+        {
+          "type": "if",
+          "condition": "${text contains props.expected_text}",
+          "then": [
+            {
+              "type": "tap",
+              "point": [
+                "${props.rois[index][0] + props.rois[index][2] / 2}",
+                "${props.rois[index][1] + props.rois[index][3] / 2}"
+              ],
+              "duration_ms": 100
+            },
+            {
+              "type": "wait",
+              "wait_ms": "${props.wait_ms}"
+            },
+            {
+              "type": "break"
+            }
+          ]
+        },
+        {
+          "type": "assign",
+          "target": "${index}",
+          "value": "${index + 1}"
+        }
+      ],
+      "label": "Scan default ROIs and tap the first matching text"
+    },
+    {
+      "type": "script",
+      "script_name": "child.json",
+      "props": {
+        "rois": "${button_rois}",
+        "expected_text": "${wanted_text}",
+        "wait_ms": "${props.wait_ms}"
+      },
+      "label": "Call an external child with evaluated props"
+    },
+    {
+      "type": "ocr_text",
+      "roi": [
+        100,
+        200,
+        300,
+        80
+      ],
+      "output": "${text}"
+    },
+    {
+      "type": "ocr_text",
+      "roi": [
+        100,
+        300,
+        80,
+        40
+      ],
+      "output": "${number:int}"
+    },
+    {
+      "type": "ocr_text",
+      "roi": [
+        100,
+        350,
+        80,
+        40
+      ],
+      "output": "${decimal:double}"
+    },
+    {
+      "type": "template_match",
+      "roi": [
+        100,
+        200,
+        300,
+        80
+      ],
+      "template": "button.png",
+      "threshold": 0.8,
+      "output": "${match}"
+    },
+    {
+      "type": "skill_check",
+      "roi": [
+        2276,
+        1188,
+        144,
+        144
+      ],
+      "model": "default",
+      "skill": "E",
+      "threshold": 0,
+      "output": "${skill}"
+    },
+    {
+      "type": "circle_percentage",
+      "roi": [
+        1270,
+        1270,
+        72,
+        72
+      ],
+      "profile": "default",
+      "output": "${percentage}"
+    },
+    {
+      "type": "tap",
+      "point": [
+        250,
+        240
+      ],
+      "duration_ms": 100
+    },
+    {
+      "type": "drag",
+      "from": [
+        501,
+        1080
+      ],
+      "to": [
+        501,
+        880
+      ],
+      "duration_ms": 250
+    },
+    {
+      "type": "wait",
+      "wait_ms": "${props.wait_ms}"
+    },
+    {
+      "type": "run_for",
+      "duration_ms": 1000,
+      "steps": [
+        {
+          "type": "while",
+          "condition": true,
+          "steps": [
+            {
+              "type": "wait",
+              "wait_ms": 100
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "run_until",
+      "check_every_ms": 500,
+      "timeout_ms": 30000,
+      "check": [
+        {
+          "type": "ocr_text",
+          "roi": [
+            100,
+            200,
+            300,
+            80
+          ],
+          "output": "${text}"
+        },
+        {
+          "type": "assign",
+          "target": "${done}",
+          "value": "${text contains 'DONE'}"
+        }
+      ],
+      "until": "${done}",
+      "steps": [
+        {
+          "type": "while",
+          "condition": true,
+          "steps": [
+            {
+              "type": "wait",
+              "wait_ms": 100
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "return"
+    }
+  ]
+}
+```
 
 ## Document structure
 
@@ -18,70 +290,9 @@ Every step requires `type` and accepts an optional string `label`. Fields shown 
 
 ## Passing props to a child script
 
-Save this parent as `main.json` beside `child.json`:
+The full demo below combines the parent argument example, the child OCR loop, and the command catalog into one workflow. The OCR loop uses `break` after a match so the remaining catalog steps can continue; `return` at the end stops the script.
 
-```json
-{
-  "version": 3,
-  "label": "Call OCR helper with arguments",
-  "vars": {
-    "button_rois": [[2041, 589, 111, 46], [2041, 715, 111, 46]],
-    "wanted_text": "吸收"
-  },
-  "steps": [
-    {
-      "type": "script",
-      "script_name": "child.json",
-      "props": {
-        "rois": "${button_rois}",
-        "expected_text": "${wanted_text}",
-        "wait_ms": 1000
-      }
-    }
-  ]
-}
-```
-
-Save the child as `child.json`. It can also run directly using its defaults:
-
-```json
-{
-  "version": 3,
-  "label": "Tap the first matching OCR region",
-  "vars": {
-    "props": {
-      "rois": [[2041, 589, 111, 46]],
-      "expected_text": "吸收",
-      "wait_ms": 1000
-    },
-    "index": 0,
-    "text": ""
-  },
-  "steps": [
-    {
-      "type": "while",
-      "condition": "${index < props.rois.count}",
-      "steps": [
-        {"type": "ocr_text", "roi": "${props.rois[index]}", "output": "${text}"},
-        {
-          "type": "if",
-          "condition": "${text contains props.expected_text}",
-          "then": [
-            {
-              "type": "tap",
-              "point": ["${props.rois[index][0] + props.rois[index][2] / 2}", "${props.rois[index][1] + props.rois[index][3] / 2}"],
-              "duration_ms": 100
-            },
-            {"type": "wait", "wait_ms": "${props.wait_ms}"},
-            {"type": "return"}
-          ]
-        },
-        {"type": "assign", "target": "${index}", "value": "${index + 1}"}
-      ]
-    }
-  ]
-}
-```
+The `script` step still references a separate `child.json`: child workflows cannot be embedded as a DSL field. That child must declare `rois`, `expected_text`, and `wait_ms` in its `vars.props`. To recreate the OCR helper from the demo, copy its `vars.props`, `vars.index`, and `vars.text` into a new v3 workflow and use only the labeled OCR `while` step as its `steps`. In that standalone child, `break` ends the final loop and the child completes. Do not copy the `script` call into the child, which would create a cyclic reference.
 
 Props rules:
 
@@ -116,6 +327,41 @@ In the orchestration web page, select a `script` step to edit its optional `prop
 | `continue` | None | Starts the next iteration of the nearest enclosing loop in the same execution scope. |
 | `return` | None | Stops the current DSL script. Its caller resumes after the `script` step. No return value. |
 
+### Full step field documentation
+
+These fields apply at every nesting level. Required means required for the listed step type. Input fields accept literals or whole expression strings; `type`, `label`, `target`, and `output` use the fixed forms described below. No other step fields are accepted.
+
+| Step type(s) | Field | Required / default | Type and validation | Meaning |
+| --- | --- | --- | --- | --- |
+| All | `type` | Required | Literal string from the command table above | Selects the command. |
+| All | `label` | Optional; omitted | Literal string | Annotation only. |
+| `assign` | `target` | Required | `${declared_variable}` | Whole local variable to replace; no member/index or typed destinations. |
+| `assign` | `value` | Required | Any JSON value or expression | Replacement value; nested arrays/objects may contain expressions. |
+| `while`, `if` | `condition` | Required | Boolean | Loop condition or branch selector; no truthy coercion. |
+| `while`, `run_for`, `run_until` | `steps` | Required | Array of steps, possibly empty | Body; timing and cancellation follow the command table. |
+| `if` | `then` | Required | Array of steps, possibly empty | True branch. |
+| `if` | `else` | Optional; empty branch | Array of steps | False branch. |
+| `run_for`, `tap`, `drag` | `duration_ms` | Required | Positive integer, milliseconds | Body deadline or touch hold duration. |
+| `run_until` | `check_every_ms` | Required | Positive integer, milliseconds | Periodic check interval after the initial check. |
+| `run_until` | `timeout_ms` | Required | Positive integer, milliseconds | Timeout raises an error. |
+| `run_until` | `check` | Required | Array of steps | Initial and periodic check; restricted commands and disjoint writes as documented below. |
+| `run_until` | `until` | Required | Boolean | Evaluated after a check; true stops the body. |
+| `script` | `script_name` | Required | Nonempty string | Child path; relative paths use the calling file's directory. |
+| `script` | `props` | Optional; child's defaults | Object or object-valued expression | Shallow overrides of keys declared in child `vars.props`; no return binding. |
+| All vision commands | `roi` | Required | `[x, y, width, height]` | Nonnegative finite origin, positive finite dimensions; must fit the frame. |
+| `ocr_text` | `output` | Required | `${variable}`, `${variable:int}`, `${variable:double}` | Declared destination; plain text or validated numeric conversion. |
+| Other vision commands | `output` | Required | `${variable}` | Declared destination; numeric suffixes are forbidden. |
+| `template_match` | `template` | Required | Nonempty string | Template identifier; current device backend is unsupported. |
+| `template_match` | `threshold` | Required | Number in [-1, 1] | Template match threshold; parser support only. |
+| `skill_check` | `model` | Required | Nonempty string; adapter requires `default` | Classifier model. |
+| `skill_check` | `skill` | Required | Nonempty string | Skill identifier, e.g. `E`. |
+| `skill_check` | `threshold` | Required | Number in [0, 1]; adapter requires `0` | Classifier threshold. |
+| `circle_percentage` | `profile` | Required | Nonempty string; adapter requires `default` | Ring detector profile; ROI must be 72×72 with integer coordinates. |
+| `tap` | `point` | Required | `[x, y]` | Nonnegative finite on-screen coordinates. |
+| `drag` | `from`, `to` | Both required | Each is `[x, y]` | Nonnegative finite on-screen start and end coordinates. |
+| `wait` | `wait_ms` | Required | Nonnegative integer, milliseconds | Cancellable delay; zero is valid. |
+| `break`, `continue`, `return` | No additional fields | — | Only `type` and optional `label` | Control flow; `break` and `continue` require an enclosing loop. |
+
 ### Vision outputs
 
 | Operation | Output detail |
@@ -127,58 +373,6 @@ In the orchestration web page, select a `script` step to edit its optional `prop
 | Circle percentage | Fraction of colored ring samples in the 72×72 crop, using radii 30–36 px. White, translucent white, and gray are excluded. |
 
 All output destinations must already exist in `vars`. Numeric output suffixes are supported only by OCR.
-
-## Complete command catalog demo
-
-This demonstrates every command, including `drag`, timed scopes, and typed OCR. It parses as a single workflow. It is a syntax catalog: calibrate coordinates, provide `child.json`, and replace or remove unsupported `template_match` before using it on a device.
-
-```json
-{
-  "version": 3,
-  "label": "All command forms",
-  "vars": {
-    "props": {"wait_ms": 1000},
-    "count": 0,
-    "text": "",
-    "number": 0,
-    "decimal": 0,
-    "done": false,
-    "match": null,
-    "skill": null,
-    "percentage": 0
-  },
-  "steps": [
-    {"type": "assign", "target": "${count}", "value": 0},
-    {"type": "while", "condition": "${count < 3}", "steps": [
-      {"type": "assign", "target": "${count}", "value": "${count + 1}"},
-      {"type": "if", "condition": "${count == 1}", "then": [{"type": "continue"}], "else": []},
-      {"type": "break"}
-    ]},
-    {"type": "script", "script_name": "child.json", "props": {"wait_ms": "${props.wait_ms}"}},
-    {"type": "ocr_text", "roi": [100, 200, 300, 80], "output": "${text}"},
-    {"type": "ocr_text", "roi": [100, 300, 80, 40], "output": "${number:int}"},
-    {"type": "ocr_text", "roi": [100, 350, 80, 40], "output": "${decimal:double}"},
-    {"type": "template_match", "roi": [100, 200, 300, 80], "template": "button.png", "threshold": 0.8, "output": "${match}"},
-    {"type": "skill_check", "roi": [2276, 1188, 144, 144], "model": "default", "skill": "E", "threshold": 0, "output": "${skill}"},
-    {"type": "circle_percentage", "roi": [1270, 1270, 72, 72], "profile": "default", "output": "${percentage}"},
-    {"type": "tap", "point": [250, 240], "duration_ms": 100},
-    {"type": "drag", "from": [501, 1080], "to": [501, 880], "duration_ms": 250},
-    {"type": "wait", "wait_ms": "${props.wait_ms}"},
-    {"type": "run_for", "duration_ms": 1000, "steps": [
-      {"type": "while", "condition": true, "steps": [{"type": "wait", "wait_ms": 100}]}
-    ]},
-    {"type": "run_until", "check_every_ms": 500, "timeout_ms": 30000,
-      "check": [
-        {"type": "ocr_text", "roi": [100, 200, 300, 80], "output": "${text}"},
-        {"type": "assign", "target": "${done}", "value": "${text contains 'DONE'}"}
-      ],
-      "until": "${done}",
-      "steps": [{"type": "while", "condition": true, "steps": [{"type": "wait", "wait_ms": 100}]}]
-    },
-    {"type": "return"}
-  ]
-}
-```
 
 ## Expressions and coordinates
 
@@ -220,7 +414,7 @@ The loader also accepts recorded-event files (`version`, `deviceWidth`, `deviceH
 
 ## Verification
 
-From `wuwa_adb`, compile and run the props tests and parse all workflow examples in this document:
+From `wuwa_adb`, compile and run the props tests and parse the single full demo in this document:
 
 ```sh
 swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-props-check \

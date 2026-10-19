@@ -1,10 +1,10 @@
 import Foundation
 
-/// 对本地 ADB 命令的封装。
+/// Wrapper around the local ADB command.
 struct AdbClient {
     let adbPath: String
 
-    /// 同步执行一条 adb 命令，返回标准输出、标准错误与退出码。
+    /// Runs one adb command synchronously, returning stdout, stderr, and the exit code.
     func run(_ args: [String]) throws -> (stdout: String, stderr: String, exitCode: Int32) {
         let (out, err, code) = try runRaw(args)
         return (String(data: out, encoding: .utf8) ?? "",
@@ -12,7 +12,7 @@ struct AdbClient {
                 code)
     }
 
-    /// 执行 adb 命令并返回原始二进制标准输出（用于 screencap 等）。
+    /// Runs an adb command and returns raw binary stdout (used for screencap etc.).
     func runBinary(_ args: [String]) throws -> Data {
         let (out, err, code) = try runRaw(args)
         guard code == 0 else {
@@ -21,7 +21,7 @@ struct AdbClient {
         return out
     }
 
-    /// 执行 adb 并并发排空 stdout/stderr，避免大输出填满管道缓冲导致死锁。
+    /// Runs adb while draining stdout/stderr concurrently so large output can't fill the pipe buffer and deadlock.
     private func runRaw(_ args: [String]) throws -> (stdout: Data, stderr: Data, exitCode: Int32) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: adbPath)
@@ -54,15 +54,15 @@ struct AdbClient {
         return (outData, errData, process.terminationStatus)
     }
 
-    /// 截取设备屏幕，返回 PNG 数据。
+    /// Captures the device screen and returns PNG data.
     func screencap(serial: String) throws -> Data {
         try runBinary(["-s", serial, "exec-out", "screencap", "-p"])
     }
 
-    /// 列出已连接（且已授权）的设备。
+    /// Lists connected (and authorized) devices.
     func devices() throws -> [Device] {
         let (out, _, code) = try run(["devices", "-l"])
-        guard code == 0 else { throw AdbError.commandFailed("adb devices 执行失败") }
+        guard code == 0 else { throw AdbError.commandFailed("adb devices failed") }
         return parseDevices(out)
     }
 
@@ -92,7 +92,7 @@ struct AdbClient {
         return result.filter { $0.state == "device" }
     }
 
-    /// 获取设备名字、Android 版本与屏幕分辨率（一次 shell 命令）。
+    /// Fetches the device name, Android version, and screen resolution (one shell command).
     func deviceInfo(serial: String) -> (name: String?, version: String?, resolution: String?) {
         guard let result = try? run(["-s", serial, "shell", "settings get global device_name; getprop ro.build.version.release; wm size"]),
               result.exitCode == 0 else {
@@ -114,7 +114,7 @@ struct AdbClient {
             } else {
                 nonSizeLines += 1
                 if nonSizeLines == 1 {
-                    // 设备名字（settings 未设置时返回 "null"）
+                    // Device name ("null" when not set in settings)
                     name = (s == "null") ? nil : s
                 } else if nonSizeLines == 2 {
                     version = s
@@ -124,23 +124,23 @@ struct AdbClient {
         return (name, version, resolution)
     }
 
-    /// 建立反向端口转发（设备上的 localabstract 指向本机 tcp 端口）。
+    /// Sets up reverse port forwarding (a device localabstract pointing at a local tcp port).
     func reverse(serial: String, remote: String, localPort: UInt16) throws {
         let (_, err, code) = try run(["-s", serial, "reverse", remote, "tcp:\(localPort)"])
-        guard code == 0 else { throw AdbError.commandFailed("adb reverse 失败：\(err)") }
+        guard code == 0 else { throw AdbError.commandFailed("adb reverse failed: \(err)") }
     }
 
     func removeReverse(serial: String, remote: String) {
         _ = try? run(["-s", serial, "reverse", "--remove", remote])
     }
 
-    /// 推送 scrcpy-server 到设备。
+    /// Pushes scrcpy-server to the device.
     func push(serial: String, local: String, remote: String) throws {
         let (_, err, code) = try run(["-s", serial, "push", local, remote])
-        guard code == 0 else { throw AdbError.commandFailed("adb push 失败：\(err)") }
+        guard code == 0 else { throw AdbError.commandFailed("adb push failed: \(err)") }
     }
 
-    /// 在设备上启动 scrcpy-server（长驻进程），返回可终止的 Process。
+    /// Starts scrcpy-server on the device (long-lived process) and returns the killable Process.
     func spawnServer(serial: String, scid: UInt32) throws -> Process {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: adbPath)
@@ -156,7 +156,7 @@ struct AdbClient {
         ]
         process.standardInput = FileHandle.nullDevice
 
-        // 把 server 日志写入文件（不用 readabilityHandler，避免进程终止后 FileHandle 悬垂导致崩溃）。
+        // Write server logs to a file (no readabilityHandler, to avoid a dangling FileHandle crash after the process exits).
         let logURL = URL(fileURLWithPath: "/tmp/adbquick-server.log")
         if !FileManager.default.fileExists(atPath: logURL.path) {
             FileManager.default.createFile(atPath: logURL.path, contents: nil)

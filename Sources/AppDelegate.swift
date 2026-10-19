@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if let mirrorSerial {
-            // 调试模式：直接镜像指定 serial 的设备。
+            // Debug mode: directly mirror the device with the given serial.
             let device = Device(serial: mirrorSerial, state: "device", model: nil, product: nil, transport: nil)
             startStreaming(device: device)
         } else {
@@ -30,14 +30,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 主动设置 Dock 图标，避免 LaunchServices 图标缓存导致显示成通用图标。
+    /// Sets the Dock icon proactively so a stale LaunchServices icon cache can't show the generic icon.
     private func applyAppIcon() {
         var icon: NSImage?
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") {
             icon = NSImage(contentsOf: url)
         }
         if icon == nil {
-            // 直接运行可执行文件（非 .app）时，回退到同目录 assets。
+            // When running the bare executable (not the .app), fall back to the assets folder next to it.
             let exeDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
             icon = NSImage(contentsOf: exeDir.appendingPathComponent("assets/AppIcon.icns"))
                 ?? NSImage(contentsOf: exeDir.appendingPathComponent("assets/icon.png"))
@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startStreaming(device: Device) {
         let controller = StreamingWindowController(device: device, controlInfoStore: controlInfoStore)
         controller.onReady = { [weak self] in
-            // 视频尺寸已就绪、渲染窗口已按正确大小显示，再关闭设备列表。
+            // Close the device list only after the video size is ready and the render window is shown at the correct size.
             self?.deviceListController.close()
         }
         controller.onEnded = { [weak self] in
@@ -74,14 +74,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.deviceListController.show()
         }
         streamingController = controller
-        deviceListController.showConnecting("正在连接 \(device.displayName)…")
+        deviceListController.showConnecting("Connecting to \(device.displayName)…")
 
-        // 控制面板的动作按钮路由到当前会话。
+        // Route the control panel action buttons to the current session.
         controlPanelController.onAction = { [weak self] action in
             self?.streamingController?.handleAction(action)
         }
 
-        // 设备列表保持显示，等 onReady 后再关闭，避免渲染窗口先小后大的跳变。
+        // Keep the device list visible until onReady fires, avoiding the render window jumping from small to large.
         controller.start()
     }
 }
