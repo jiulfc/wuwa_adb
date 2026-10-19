@@ -763,12 +763,21 @@
       const fields = stepFields(selectedStep);
       const entries = Object.entries(fields);
       if (!Object.prototype.hasOwnProperty.call(fields, 'label')) entries.unshift(['label', '']);
+      if (selectedStep.type === 'script' && !Object.prototype.hasOwnProperty.call(fields, 'props')) {
+        entries.push(['props', undefined]);
+      }
 
       entries.forEach(([key, value], index) => {
         const field = document.createElement('div');
         field.className = 'parameter-field';
         const label = document.createElement('label');
-        const control = createParameterControl(value);
+        const isProps = selectedStep.type === 'script' && key === 'props';
+        const control = isProps ? document.createElement('textarea') : createParameterControl(value);
+        if (isProps) {
+          control.spellcheck = false;
+          control.value = value === undefined ? '' : JSON.stringify(value, null, 2);
+          control.placeholder = 'Optional JSON object, e.g. {"wait_ms": 1000}. Leave blank to omit.';
+        }
         control.id = `parameter-${index}`;
         control.classList.add('parameter-control');
         label.htmlFor = control.id;
@@ -818,8 +827,10 @@
 
     function updateParameter(key, original, control) {
       try {
-        const value = readParameterValue(control, original);
-        if (key === 'label' && typeof value === 'string' && !value.trim()) delete selectedStep.label;
+        const isProps = selectedStep.type === 'script' && key === 'props';
+        const value = isProps ? readScriptProps(control.value) : readParameterValue(control, original);
+        if (isProps && value === undefined) delete selectedStep.props;
+        else if (key === 'label' && typeof value === 'string' && !value.trim()) delete selectedStep.label;
         else selectedStep[key] = value;
         dirty = true;
         renderAll();
@@ -827,6 +838,14 @@
       } catch (error) {
         showStatus(`Invalid ${key}: ${error.message}`, true);
       }
+    }
+
+    function readScriptProps(source) {
+      if (!source.trim()) return undefined;
+      const value = JSON.parse(source);
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) return value;
+      if (typeof value === 'string' && value.startsWith('${') && value.endsWith('}')) return value;
+      throw new Error('Enter a JSON object or a quoted object expression such as "${props}"');
     }
 
     function addStep() {

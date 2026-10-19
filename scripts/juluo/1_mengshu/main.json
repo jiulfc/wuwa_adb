@@ -39,6 +39,10 @@
         },
         {
           "type": "script",
+          "script_name": "pickup_prepare.json"
+        },
+        {
+          "type": "script",
           "script_name": "pickup.json"
         },
         {

@@ -68,7 +68,7 @@ struct ExpressionParser {
                 let pair = i + 1 < chars.count ? String(chars[i...i + 1]) : ""
                 if ["==", "!=", "<=", ">=", "&&", "||"].contains(pair) {
                     tokens.append(.symbol(pair)); i += 2
-                } else if "()+-*/%!<>.".contains(c) {
+                } else if "()[]+-*/%!<>.".contains(c) {
                     tokens.append(.symbol(String(c))); i += 1
                 } else { throw error("Unsupported expression character '\(c)'") }
             }
@@ -124,11 +124,21 @@ struct ExpressionParser {
             index += 1
         default: throw error("Expected a value or variable")
         }
-        while tokens[index] == .symbol(".") {
-            index += 1
-            guard case .identifier(let name) = tokens[index] else { throw error("Expected member name") }
-            index += 1
-            result = .member(result, name)
+        while true {
+            if tokens[index] == .symbol(".") {
+                index += 1
+                guard case .identifier(let name) = tokens[index] else { throw error("Expected member name") }
+                index += 1
+                result = .member(result, name)
+            } else if tokens[index] == .symbol("[") {
+                index += 1
+                let subscriptValue = try expression(minimum: 0, depth: depth + 1)
+                guard tokens[index] == .symbol("]") else { throw error("Expected ']'") }
+                index += 1
+                result = .index(result, subscriptValue)
+            } else {
+                break
+            }
         }
         return result
     }

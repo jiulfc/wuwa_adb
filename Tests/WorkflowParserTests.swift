@@ -30,7 +30,7 @@ struct WorkflowParserCheck {
         var touches: [WorkflowTouchAction] = []
         let logLock = NSLock()
         var logs: [String] = []
-        let runner = WorkflowRunner(checkCancelled: {}, script: { name, _ in scripts.append(name) },
+        let runner = WorkflowRunner(checkCancelled: {}, script: { name, _, _ in scripts.append(name) },
             vision: { kind, _, parameters, _ in
                 visionKinds.append(kind)
                 if kind == .ocrText { return .string("确认") }
@@ -49,7 +49,7 @@ struct WorkflowParserCheck {
         precondition(logs.contains("[Workflow] Condition: type=if, matched=true"))
 
         let circle = try parse(#"[{"type":"circle_percentage","roi":[1270,1270,72,72],"profile":"default","output":"${n}"}]"#)
-        let circleRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in },
+        let circleRunner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in },
             vision: { kind, roi, parameters, _ in
                 precondition(kind == .circlePercentage && roi == [1270, 1270, 72, 72])
                 precondition(parameters["profile"] == .string("default"))
@@ -68,7 +68,7 @@ struct WorkflowParserCheck {
         let cancelledDrag = WorkflowRunner(checkCancelled: {
             cancellationChecks += 1
             if cancellationChecks == 2 { throw replayError("cancelled") }
-        }, script: { _, _ in }, vision: { _, _, _, _ in .null },
+        }, script: { _, _, _ in }, vision: { _, _, _, _ in .null },
            touch: { _, action in cancelledTouches.append(action) }, log: { _ in })
         do { try cancelledDrag.run(drag); fatalError("Drag cancellation ignored") } catch { }
         precondition(cancelledTouches == [.down, .move, .up], "Cancelled drag must release touch")
@@ -83,17 +83,17 @@ struct WorkflowParserCheck {
         var recognized = [" 42\n", "3.5"]
         var typedROIs: [[Double]] = []
         var typedPassed = false
-        let typedRunner = WorkflowRunner(checkCancelled: {}, script: { name, _ in typedPassed = name == "typed.json" },
+        let typedRunner = WorkflowRunner(checkCancelled: {}, script: { name, _, _ in typedPassed = name == "typed.json" },
             vision: { _, roi, _, _ in typedROIs.append(roi); return .string(recognized.removeFirst()) },
             touch: { _, _ in }, log: { _ in })
         try typedRunner.run(typedOCR)
         precondition(typedROIs == [[1, 2, 3, 4], [1, 2, 3, 4]] && typedPassed)
         let invalidNumber = try parse(#"[{"type":"ocr_text","roi":[0,0,1,1],"output":"${n:int}"}]"#)
-        let invalidNumberRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in },
+        let invalidNumberRunner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in },
             vision: { _, _, _, _ in .string("not a number") }, touch: { _, _ in }, log: { _ in })
         do { try invalidNumberRunner.run(invalidNumber); fatalError("Nonnumeric OCR accepted") }
         catch { precondition(error.localizedDescription.contains("有效数字")) }
-        let fractionalIntRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in },
+        let fractionalIntRunner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in },
             vision: { _, _, _, _ in .string("1.5") }, touch: { _, _ in }, log: { _ in })
         do { try fractionalIntRunner.run(invalidNumber); fatalError("Fractional int OCR accepted") }
         catch { precondition(error.localizedDescription.contains("整数")) }
@@ -107,6 +107,27 @@ struct WorkflowParserCheck {
         """#)
         try runner.run(contains)
         precondition(scripts == ["child.json", "contains.json"])
+
+        let indexed = try parse(#"""
+        [
+            {"type":"while","condition":"${i < targets.count}","steps":[
+                {"type":"ocr_text","roi":"${targets[i].roi}","output":"${text}"},
+                {"type":"if","condition":"${text contains targets[i].expected}","then":[
+                    {"type":"tap","point":["${targets[i].roi[0] + targets[i].roi[2] / 2}","${targets[i].roi[1] + targets[i].roi[3] / 2}"],"duration_ms":1}
+                ]},
+                {"type":"assign","target":"${i}","value":"${i + 1}"}
+            ]}
+        ]
+        """#, vars: #"{"targets":[{"roi":[0,0,2,2],"expected":"first"},{"roi":[10,20,4,6],"expected":"reward"}],"i":0,"text":""}"#)
+        var indexedTexts = ["other", "CLAIM REWARD now"]
+        var indexedROIs: [[Double]] = []
+        var indexedTouches: [([Double], WorkflowTouchAction)] = []
+        let indexedRunner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in },
+            vision: { _, roi, _, _ in indexedROIs.append(roi); return .string(indexedTexts.removeFirst()) },
+            touch: { indexedTouches.append(($0, $1)) }, log: { _ in })
+        try indexedRunner.run(indexed)
+        precondition(indexedROIs == [[0, 0, 2, 2], [10, 20, 4, 6]])
+        precondition(indexedTouches.count == 2 && indexedTouches.allSatisfy { $0.0 == [12, 23] })
 
         let runUntil = try parse(#"""
         [
@@ -126,7 +147,7 @@ struct WorkflowParserCheck {
 
         let runFor = try parse(#"[{"type":"run_for","duration_ms":20,"steps":[{"type":"tap","point":[1,2],"duration_ms":200}]}]"#)
         var runForTouches: [WorkflowTouchAction] = []
-        let runForRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in },
+        let runForRunner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in },
             vision: { _, _, _, _ in .null }, touch: { _, action in runForTouches.append(action) }, log: { _ in })
         try runForRunner.run(runFor)
         precondition(runForTouches == [.down, .up])

@@ -58,8 +58,13 @@ indirect enum LoadedScript {
         let id: String
     }
 
-    static func load(from url: URL) throws -> LoadedScript {
-        try load(from: url, ancestors: [])
+    static func load(from url: URL, props: [String: JSONValue]? = nil) throws -> LoadedScript {
+        let loaded = try load(from: url, ancestors: [])
+        guard let props else { return loaded }
+        guard case .workflow(let child) = loaded else {
+            throw replayError("props are only supported for vars/steps DSL scripts.")
+        }
+        return .workflow(LoadedWorkflow(workflow: try child.workflow.applying(props: props), file: child.file))
     }
 
     private static func load(from url: URL, ancestors: Set<URL>) throws -> LoadedScript {

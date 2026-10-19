@@ -27,7 +27,7 @@ struct KatixiyaOptimize1Check {
         var checkedSkills: [String] = []
         var checkedAs = 0
         var downPoints: [[Double]] = []
-        let runner = WorkflowRunner(checkCancelled: {}, script: { _, _ in }, vision: { _, _, parameters, _ in
+        let runner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in }, vision: { _, _, parameters, _ in
             guard case .string(let skill) = parameters["skill"] else { fatalError("Missing combo skill") }
             checkedSkills.append(skill)
             if skill == "A" { checkedAs += 1 }

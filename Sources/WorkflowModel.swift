@@ -26,6 +26,7 @@ public indirect enum Expression: Equatable, Sendable {
     case literal(JSONValue)
     case variable(String)
     case member(Expression, String)
+    case index(Expression, Expression)
     case unary(String, Expression)
     case binary(String, Expression, Expression)
 }
@@ -39,6 +40,19 @@ public struct Workflow: Equatable, Sendable {
     public let version: Int
     public let variables: [String: JSONValue]
     public let steps: [Step]
+
+    func applying(props: [String: JSONValue]) throws -> Workflow {
+        guard case .object(let defaults) = variables["props"] else {
+            throw replayError("A script receiving props must declare vars.props as an object.")
+        }
+        let unknown = Set(props.keys).subtracting(defaults.keys)
+        guard unknown.isEmpty else {
+            throw replayError("Undeclared props: \(unknown.sorted().joined(separator: ", "))")
+        }
+        var values = variables
+        values["props"] = .object(defaults.merging(props) { _, passed in passed })
+        return Workflow(version: version, variables: values, steps: steps)
+    }
 }
 
 public enum VisionKind: String, Equatable, Sendable {
@@ -67,7 +81,7 @@ public indirect enum Step: Equatable, Sendable {
     case conditional(condition: Input, then: [Step], otherwise: [Step])
     case runFor(duration: Input, steps: [Step])
     case runUntil(checkEvery: Input, timeout: Input, check: [Step], until: Input, steps: [Step])
-    case script(name: Input)
+    case script(name: Input, props: Input? = nil)
     case vision(VisionCommand)
     case tap(point: Input, duration: Input)
     case drag(from: Input, to: Input, duration: Input)

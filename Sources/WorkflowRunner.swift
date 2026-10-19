@@ -9,7 +9,7 @@ enum WorkflowTouchAction: String {
 /// Executes one parsed workflow. Device and vision work stays in the host callbacks.
 struct WorkflowRunner {
     let checkCancelled: WorkflowCancellationCheck
-    let script: (String, @escaping WorkflowCancellationCheck) throws -> Void
+    let script: (String, [String: JSONValue]?, @escaping WorkflowCancellationCheck) throws -> Void
     let vision: (VisionKind, [Double], [String: JSONValue], WorkflowCancellationCheck) throws -> JSONValue
     let touch: ([Double], WorkflowTouchAction) throws -> Void
     let log: (String) -> Void
@@ -54,10 +54,18 @@ struct WorkflowRunner {
                                 timeout: try milliseconds(timeout, variables.snapshot(), minimum: 1),
                                 checkSteps: checkSteps, until: until, body: body,
                                 variables: variables, parentCheck: check)
-        case .script(let name):
-            let name = try string(name, variables.snapshot())
+        case .script(let name, let input):
+            let snapshot = variables.snapshot()
+            let name = try string(name, snapshot)
             guard !name.isEmpty else { throw replayError("script_name 不能为空。") }
-            try script(name, check)
+            var props: [String: JSONValue]?
+            if let input {
+                guard case .object(let object) = try value(input, snapshot) else {
+                    throw replayError("script.props must evaluate to an object.")
+                }
+                props = object
+            }
+            try script(name, props, check)
         case .vision(let command):
             let snapshot = variables.snapshot()
             let roi = try coordinates(command.roi, snapshot, count: 4)
@@ -223,10 +231,21 @@ struct WorkflowRunner {
             guard let value = variables[name] else { throw replayError("变量不存在：\(name)") }
             return value
         case .member(let base, let name):
-            guard case .object(let object) = try value(base, variables), let value = object[name] else {
+            let base = try value(base, variables)
+            if case .array(let values) = base, name == "count" { return .number(Double(values.count)) }
+            guard case .object(let object) = base, let value = object[name] else {
                 throw replayError("对象成员不存在：\(name)")
             }
             return value
+        case .index(let base, let subscriptValue):
+            guard case .array(let values) = try value(base, variables) else {
+                throw replayError("索引仅支持数组。")
+            }
+            let rawIndex = try number(value(subscriptValue, variables))
+            guard let index = Int(exactly: rawIndex), values.indices.contains(index) else {
+                throw replayError("数组索引超出范围。")
+            }
+            return values[index]
         case .unary("!", let operand): return .bool(!(try boolean(value(operand, variables))))
         case .unary("-", let operand): return try finite(-number(value(operand, variables)))
         case .unary("+", let operand): return try finite(number(value(operand, variables)))

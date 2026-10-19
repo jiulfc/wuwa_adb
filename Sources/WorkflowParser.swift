@@ -20,6 +20,7 @@ public struct WorkflowParser {
             throw DSLParseError(path: "$.version", message: "Only DSL version 3 is supported")
         }
         let vars = try object(root["vars"]!, at: "$.vars")
+        if let props = vars["props"] { _ = try object(props, at: "$.vars.props") }
         for name in vars.keys.sorted() where !ExpressionParser.isName(name) {
             throw DSLParseError(path: "$.vars.\(name)", message: "Invalid variable name")
         }
@@ -105,8 +106,10 @@ private struct Validator {
             return .runUntil(checkEvery: interval, timeout: timeout, check: check,
                              until: try condition(input("until"), at: path + ".until"), steps: main)
         case "script":
-            try schema(["script_name"])
-            return .script(name: try string(input("script_name"), at: path + ".script_name"))
+            try schema(["script_name"], ["props"])
+            let props = try obj["props"].map { try self.input($0, at: path + ".props") }
+            if let props { try expect(kind(props, at: path + ".props"), .object, at: path + ".props") }
+            return .script(name: try string(input("script_name"), at: path + ".script_name"), props: props)
         case "tap":
             try schema(["point", "duration_ms"])
             return .tap(point: try coordinates(input("point"), count: 2, at: path + ".point"),
@@ -225,9 +228,14 @@ private struct Validator {
         switch expression {
         case .literal(let v): return kind(v)
         case .variable: return .dynamic
-        case .member(let base, _):
+        case .member(let base, let name):
             let k = try kind(base, at: path)
+            if k == .array && name == "count" { return .number }
             guard k == .object || k == .dynamic else { throw fail(path, "Member access requires an object") }
+            return .dynamic
+        case .index(let base, let index):
+            try expect(kind(base, at: path), .array, at: path)
+            try expect(kind(index, at: path), .number, at: path)
             return .dynamic
         case .unary(let op, let value):
             let expected: Kind = op == "!" ? .boolean : .number

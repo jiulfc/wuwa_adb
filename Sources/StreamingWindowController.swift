@@ -477,9 +477,9 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                             throw replayError("脚本循环引用或嵌套超过 64 层：\(file.path)")
                         }
                         let nextAncestors = ancestors.union([file])
-                        let workflowRunner = WorkflowRunner(checkCancelled: combinedCheck, script: { name, localCheck in
+                        let workflowRunner = WorkflowRunner(checkCancelled: combinedCheck, script: { name, props, localCheck in
                             let childURL = URL(fileURLWithPath: name, relativeTo: file.deletingLastPathComponent())
-                            let child = try LoadedScript.load(from: childURL)
+                            let child = try LoadedScript.load(from: childURL, props: props)
                             DispatchQueue.main.sync {
                                 self.controlInfoStore.setRunningScriptName(childURL.lastPathComponent)
                                 self.client?.log("[Workflow] Running \(childURL.lastPathComponent)")

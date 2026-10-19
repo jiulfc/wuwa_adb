@@ -122,7 +122,7 @@ struct FlowCheck {
         guard case .assign(target: "full_checks", value: .literal(.number(0))) = teamSteps[0],
               case .runUntil(let interval, _, let check, let until, let body) = teamSteps[1],
               case .whileLoop(_, let roleLoop) = body.first,
-              case .script(.expression(.variable("role_script"))) = roleLoop.first,
+              case .script(.expression(.variable("role_script")), nil) = roleLoop.first,
               case .tap = teamSteps[2], case .wait(let switchWait) = teamSteps[3],
               case .conditional(_, let qianxiaoBranch, let katixiyaBranch) = teamSteps[4],
               case .assign(target: "role_script", value: .literal(.string("combat_role_qianxiao.json"))) = qianxiaoBranch.first,
@@ -162,7 +162,7 @@ struct FlowCheck {
         var qianxiaoRChecks = 0
         var qianxiaoEChecks = 0
         var qianxiaoHeavyTaps = 0
-        let qianxiaoRunner = WorkflowRunner(checkCancelled: {}, script: { _, _ in }, vision: { _, _, parameters, _ in
+        let qianxiaoRunner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in }, vision: { _, _, parameters, _ in
             guard case .string(let skill) = parameters["skill"] else { fatalError("Missing Qianxiao skill") }
             qianxiaoSkills.append(skill)
             if skill == "R" { qianxiaoRChecks += 1 }

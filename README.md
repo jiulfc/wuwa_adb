@@ -75,6 +75,8 @@ open AdbQuick.app          # 或双击 .app
 
 ### vars / steps DSL
 
+Full English reference, complete examples, every command's inputs/outputs, and `script.props`: [JSON DSL v3 Reference](scripts/json_dsl_schema.md). The orchestration inspector includes an optional JSON `props` field for script steps; child defaults belong in `vars.props` and are accessed with `${props.key}`.
+
 ```json
 {
   "version": 3,
@@ -90,7 +92,7 @@ open AdbQuick.app          # 或双击 .app
 }
 ```
 
-DSL 回放支持 `assign`、`while`、`if`、`run_for`、`run_until`、`script`、`tap`、`drag`、`wait`、`break`、`continue`、`return` 和受限表达式。`run_for` 在 `duration_ms` 后取消其 `steps` 并继续；`run_until` 运行 `steps`，同时每隔 `check_every_ms` 执行 `check`，`until` 匹配后取消 `steps` 并继续，达到 `timeout_ms` 则报错。`vars` 可以保存 JSON 数组，ROI、点位等字段可直接使用 `"${roi}"` 引用。`ocr_text` 默认返回字符串；`output` 使用 `${name:int}` 或 `${name:double}` 时，会把去除首尾空白的完整 OCR 结果解析为数字，空值或非数字会终止流程。
+DSL 回放支持 `assign`、`while`、`if`、`run_for`、`run_until`、`script`、`tap`、`drag`、`wait`、`break`、`continue`、`return` 和受限表达式。`run_for` 在 `duration_ms` 后取消其 `steps` 并继续；`run_until` 运行 `steps`，同时每隔 `check_every_ms` 执行 `check`，`until` 匹配后取消 `steps` 并继续，达到 `timeout_ms` 则报错。`vars` 可以保存 JSON 数组，ROI、点位等字段可直接使用 `"${roi}"` 引用，数组列表支持 `${rois[index]}` 索引和 `${rois.count}` 长度。`ocr_text` 默认返回字符串；`output` 使用 `${name:int}` 或 `${name:double}` 时，会把去除首尾空白的完整 OCR 结果解析为数字，空值或非数字会终止流程。
 
 `circle_percentage` 的 `default` profile 读取固定 72×72 ROI 内半径 30–36 px 的有色圆环，红、绿、蓝等颜色都会计入，白色、半透明白色和灰色不计，返回 `0.0`–`1.0`。例如检查左上角为 `(1270, 1270)` 的圆环是否已满：
 
