@@ -1,6 +1,6 @@
 import Foundation
 
-/// 一台已连接的 ADB 设备。
+/// One connected ADB device.
 struct Device {
     let serial: String
     let state: String
@@ -20,7 +20,7 @@ struct Device {
 
     var subtitle: String {
         var parts: [String] = []
-        // 型号：有独立设备名时才显示，避免与标题重复
+        // Model: shown only when a distinct device name exists, to avoid duplicating the title
         if let deviceName, !deviceName.isEmpty,
            let model, !model.isEmpty, model != deviceName {
             parts.append(model)
@@ -43,14 +43,14 @@ enum AdbError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .commandFailed(let message):
-            return message.isEmpty ? "命令执行失败" : message
+            return message.isEmpty ? "Command failed" : message
         case .serverNotFound:
-            return "未找到 scrcpy-server，请在「设置」中指定其路径"
+            return "scrcpy-server not found; specify its path in Settings"
         }
     }
 }
 
-/// 应用设置，基于 UserDefaults 持久化。
+/// App settings, persisted with UserDefaults.
 enum AppSettings {
     private static let adbPathKey = "adbPath"
     private static let serverPathKey = "scrcpyServerPath"
@@ -87,7 +87,7 @@ enum AppSettings {
         set { UserDefaults.standard.set(newValue, forKey: serverPathKey) }
     }
 
-    /// 截图保存目录，默认系统下载目录。
+    /// Screenshot save directory; defaults to the system Downloads folder.
     static var captureDirectory: String {
         get {
             if let v = UserDefaults.standard.string(forKey: captureDirKey), !v.isEmpty { return v }

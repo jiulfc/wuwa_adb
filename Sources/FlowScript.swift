@@ -10,7 +10,7 @@ struct FlowScript: Decodable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         _ = try values.decodeIfPresent(String.self, forKey: .label)
         guard !values.contains(.stop_when) else {
-            throw replayError("stop_when 已移除，请使用 DSL run_until。")
+            throw replayError("stop_when has been removed; use the DSL run_until instead.")
         }
         version = try values.decode(Int.self, forKey: .version)
         script_loop_count = try values.decodeIfPresent(Int.self, forKey: .script_loop_count)
@@ -32,10 +32,10 @@ struct FlowScript: Decodable {
                 name = try values.decode(String.self, forKey: .name)
                 id = try values.decodeIfPresent(String.self, forKey: .id)
                 guard !values.contains(.when) else {
-                    throw replayError("run 不再支持 when；条目按顺序执行，请移除 when。")
+                    throw replayError("run no longer supports when; entries run in order, so remove when.")
                 }
                 guard !values.contains(.interval), !values.contains(.steps), !values.contains(.stop_when) else {
-                    throw replayError("interval / steps / stop_when 已移除，请使用 DSL。")
+                    throw replayError("interval / steps / stop_when have been removed; use the DSL instead.")
                 }
             }
         }
@@ -70,7 +70,7 @@ indirect enum LoadedScript {
     private static func load(from url: URL, ancestors: Set<URL>) throws -> LoadedScript {
         let file = url.standardizedFileURL.resolvingSymlinksInPath()
         guard !ancestors.contains(file), ancestors.count < 64 else {
-            throw replayError("脚本循环引用或嵌套超过 64 层：\(file.path)")
+            throw replayError("Script cycle or nesting deeper than 64 levels: \(file.path)")
         }
         do {
             let data = try Data(contentsOf: file)
@@ -82,7 +82,7 @@ indirect enum LoadedScript {
                 let events: JSONValue?
             }
             let header = try JSONDecoder().decode(Header.self, from: data)
-            guard header.version == 3 else { throw replayError("仅支持 version=3。") }
+            guard header.version == 3 else { throw replayError("Only version=3 is supported.") }
             if header.vars != nil || header.steps != nil {
                 return .workflow(LoadedWorkflow(workflow: try WorkflowParser().parse(data), file: file))
             }
@@ -90,14 +90,14 @@ indirect enum LoadedScript {
                 return .recording(try Script.decode(from: data))
             }
             switch header.type {
-            case "battle": throw replayError("battle 请使用 vars / steps DSL。")
-            case "pickup": throw replayError("pickup 请使用 vars / steps DSL。")
-            case .some(let type): throw replayError("未知 type：\(type)")
+            case "battle": throw replayError("battle scripts should use the vars / steps DSL.")
+            case "pickup": throw replayError("pickup scripts should use the vars / steps DSL.")
+            case .some(let type): throw replayError("Unknown type: \(type)")
             case nil: break
             }
             let flow = try JSONDecoder().decode(FlowScript.self, from: data)
             guard (flow.script_loop_count ?? 1) > 0, !flow.run.isEmpty else {
-                throw replayError("v3 需要正整数 script_loop_count 和非空 run。")
+                throw replayError("v3 requires a positive script_loop_count and a non-empty run.")
             }
             var ids = Set<String>()
             let entries = try flow.run.enumerated().map { index, entry -> LoadedEntry in
@@ -105,7 +105,7 @@ indirect enum LoadedScript {
                 guard !entry.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                       !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                       ids.insert(id).inserted else {
-                    throw replayError("run 需要非空 name / id，且同一流程内 id 不能重复。")
+                    throw replayError("run requires non-empty name / id, and ids must be unique within one flow.")
                 }
                 let childURL = URL(fileURLWithPath: entry.name, relativeTo: file.deletingLastPathComponent())
                 let child = try load(from: childURL, ancestors: ancestors.union([file]))
@@ -123,7 +123,7 @@ struct FlowRunner {
     let checkCancelled: () throws -> Void
     let recording: (Script) throws -> Void
     var workflow: (LoadedWorkflow) throws -> Void = { _ in
-        throw replayError("当前回放器未配置 version=3 DSL 支持。")
+        throw replayError("The current player has no version=3 DSL support configured.")
     }
     let progress: (Int, Int) -> Void
     let entryStarted: (LoadedScript.LoadedEntry) -> Void

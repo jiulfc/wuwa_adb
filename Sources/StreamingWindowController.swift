@@ -1,10 +1,10 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// 实时渲染窗口：大小 = 设备大小、方向 = 设备方向，接收触摸/按键/滚动控制。
+/// Live rendering window: size = device size, orientation = device orientation; receives touch/key/scroll control.
 ///
-/// 为避免「窗口先按默认尺寸出现、再突然放大到设备尺寸」的突兀体验，
-/// 窗口会等到拿到第一帧视频尺寸（ready）后再以正确尺寸显示。
+/// To avoid the jarring "window appears at default size, then suddenly grows to device size" experience,
+/// the window waits for the first video size (ready) before showing at the correct size.
 final class StreamingWindowController: NSObject, NSWindowDelegate {
     private let device: Device
     private let window: NSWindow
@@ -20,9 +20,9 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
     private var classifier: SkillClassifier?
     private let replayQueue = DispatchQueue(label: "adbquick.replay")
 
-    /// 拿到视频尺寸、窗口准备显示时回调（用于关闭设备列表等）。
+    /// Called when the video size arrives and the window is ready to show (used to close the device list etc.).
     var onReady: (() -> Void)?
-    /// 会话结束（连接失败或窗口关闭）时回调（用于重新展示设备列表）。
+    /// Called when the session ends (connection failure or window closed), used to re-show the device list.
     var onEnded: (() -> Void)?
 
     private(set) var deviceWidth: UInt32 = 0
@@ -31,7 +31,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
     private var isPresented = false
     private var didFinish = false
 
-    // 脚本录制/回放状态
+    // Script record/playback state
     private var isRecording = false
     private var recordedEvents: [ScriptEvent] = []
     private var recordStartTime: Date?
@@ -44,8 +44,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
         super.init()
-        // 关键：关闭时不让系统额外 release 窗口，否则窗口会提前释放，
-        // 控制器析构时再次释放已释放的窗口导致崩溃（double-release）。
+        // Important: don't let the system release the window on close, or it is freed early
+        // and the controller's deinit would release it again (double-release crash).
         window.isReleasedWhenClosed = false
         deviceName = device.displayName
         window.title = deviceName
@@ -55,7 +55,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
     }
 
     func start() {
-        // 先不显示窗口，等 ready 后再显示。
+        // Don't show the window yet; show it once ready.
         setupCallbacks()
 
         let client = ScrcpyClient(device: device, decoder: decoder)
@@ -98,10 +98,10 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
 
         let operation: String
         switch action {
-        case ControlSender.actionDown: operation = "触摸按下"
-        case ControlSender.actionMove: operation = "触摸拖动"
-        case ControlSender.actionUp: operation = "触摸抬起"
-        default: operation = "触摸"
+        case ControlSender.actionDown: operation = "Touch Down"
+        case ControlSender.actionMove: operation = "Touch Move"
+        case ControlSender.actionUp: operation = "Touch Up"
+        default: operation = "Touch"
         }
         reportInfo(operation, point: (x, y))
 
@@ -119,7 +119,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         sender.sendScroll(x: x, y: y,
                           screenWidth: UInt16(deviceWidth), screenHeight: UInt16(deviceHeight),
                           hScroll: hScroll, vScroll: vScroll)
-        reportInfo("滚动", point: (x, y))
+        reportInfo("Scroll", point: (x, y))
 
         let relX = deviceWidth > 0 ? Double(x) / Double(deviceWidth) : 0
         let relY = deviceHeight > 0 ? Double(y) / Double(deviceHeight) : 0
@@ -136,25 +136,25 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         let mods = event.modifierFlags
         let key = event.charactersIgnoringModifiers?.lowercased()
         if mods.contains(.command) && key == "v" && !mods.contains(.shift) {
-            // Cmd+V：把电脑剪贴板粘贴到设备
+            // Cmd+V: paste the Mac clipboard into the device
             pasteComputerClipboard()
-            reportInfo("粘贴", point: nil)
+            reportInfo("Paste", point: nil)
         } else if mods.contains(.command) && mods.contains(.shift) && key == "h" {
             sender.sendHome()
-            reportInfo("主页", point: nil)
+            reportInfo("Home", point: nil)
             recordEvent(.key("home", t: 0))
         } else if mods.contains(.command) && mods.contains(.shift) && key == "r" {
             sender.sendRotate()
-            reportInfo("旋转设备", point: nil)
+            reportInfo("Rotate Device", point: nil)
             recordEvent(.key("rotate", t: 0))
         } else if event.keyCode == 53 || event.keyCode == 51 { // ESC / Backspace
             sender.sendBack()
-            reportInfo("返回", point: nil)
+            reportInfo("Back", point: nil)
             recordEvent(.key("back", t: 0))
         }
     }
 
-    /// 向控制面板上报当前操作与坐标。
+    /// Reports the current operation and coordinates to the control panel.
     private func reportInfo(_ operation: String, point: (Int32, Int32)?) {
         if let point {
             lastAbsPoint = point
@@ -168,14 +168,14 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                       relY: relY))
     }
 
-    /// 把电脑剪贴板内容设置到设备并执行粘贴。
+    /// Sets the Mac clipboard contents on the device and pastes.
     private func pasteComputerClipboard() {
         guard let sender = client?.controlSender else { return }
         guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else { return }
         sender.sendSetClipboard(text: text, paste: true)
     }
 
-    /// 把设备剪贴板内容写入电脑剪贴板。
+    /// Writes the device clipboard contents into the Mac clipboard.
     private func setComputerClipboard(_ text: String) {
         let pb = NSPasteboard.general
         pb.clearContents()
@@ -186,8 +186,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         let size = videoView.bounds.size
         guard size.width > 0, size.height > 0, deviceWidth > 0, deviceHeight > 0 else { return nil }
         let x = Int32(p.x / size.width * CGFloat(deviceWidth))
-        // AppKit 视图坐标系：原点在左下、y 向上；设备/视频坐标系：原点在左上、y 向下。
-        // 因此 y 需要翻转，否则触摸位置会上下颠倒（表现为方向错乱）。
+        // AppKit view coordinates: origin bottom-left, y up; device/video coordinates: origin top-left, y down.
+        // So y must be flipped, otherwise touches land upside down (i.e. direction gets scrambled).
         let y = Int32((size.height - p.y) / size.height * CGFloat(deviceHeight))
         return (x, y)
     }
@@ -197,7 +197,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             guard let self else { return }
             if self.classifier != nil && (self.deviceWidth != width || self.deviceHeight != height) {
                 self.stopPlayback()
-                self.showAlert("回放已停止", "视频尺寸或方向发生变化，请检查技能区域后重新运行。")
+                self.showAlert("Playback Stopped", "Video size or orientation changed; check the skill regions and run again.")
             }
             let first = !self.isPresented
             self.deviceWidth = width
@@ -205,7 +205,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             self.controlInfoStore.setDeviceSize(width: width, height: height)
             self.resizeWindowToDevice()
             if first {
-                // 首次拿到尺寸，此时窗口已按正确大小设置好，再显示出来。
+                // First size received: the window is now set to the correct size, so show it.
                 self.isPresented = true
                 self.window.makeKeyAndOrderFront(nil)
                 self.window.makeFirstResponder(self.videoView)
@@ -234,24 +234,24 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         window.center()
     }
 
-    /// 处理控制面板发来的动作。
+    /// Handles actions from the control panel.
     func handleAction(_ action: ControlAction) {
         switch action {
         case .home:
             client?.controlSender?.sendHome()
-            reportInfo("主页", point: nil)
+            reportInfo("Home", point: nil)
             recordEvent(.key("home", t: 0))
         case .back:
             client?.controlSender?.sendBack()
-            reportInfo("返回", point: nil)
+            reportInfo("Back", point: nil)
             recordEvent(.key("back", t: 0))
         case .rotate:
             client?.controlSender?.sendRotate()
-            reportInfo("旋转设备", point: nil)
+            reportInfo("Rotate Device", point: nil)
             recordEvent(.key("rotate", t: 0))
         case .power:
             client?.controlSender?.sendPower()
-            reportInfo("电源", point: nil)
+            reportInfo("Power", point: nil)
             recordEvent(.key("power", t: 0))
         case .screenshot:
             takeScreenshot()
@@ -280,14 +280,14 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                 try data.write(to: url)
 
                 DispatchQueue.main.async {
-                    self?.reportInfo("截图已保存", point: nil)
+                    self?.reportInfo("Screenshot Saved", point: nil)
                     NSWorkspace.shared.activateFileViewerSelecting([url])
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self?.reportInfo("截图失败", point: nil)
+                    self?.reportInfo("Screenshot Failed", point: nil)
                     let alert = NSAlert()
-                    alert.messageText = "截图失败"
+                    alert.messageText = "Screenshot Failed"
                     alert.informativeText = error.localizedDescription
                     alert.alertStyle = .warning
                     alert.runModal()
@@ -296,9 +296,9 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    // MARK: - 脚本录制 / 回放
+    // MARK: - Script Recording / Playback
 
-    /// 若正在录制，记录一条事件并带上相对开始的时间戳。
+    /// If recording, appends an event with its timestamp relative to the start.
     private func recordEvent(_ event: ScriptEvent) {
         guard isRecording, let start = recordStartTime else { return }
         var e = event
@@ -314,12 +314,12 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// 根据录制/回放状态组合窗口标题。
+    /// Composes the window title from the record/playback state.
     private func updateWindowTitle() {
         if isRecording {
-            window.title = "\(deviceName) - 脚本录制中"
+            window.title = "\(deviceName) - Recording"
         } else if isPlayingBack {
-            window.title = "\(deviceName) - 脚本回放中"
+            window.title = "\(deviceName) - Playing"
         } else {
             window.title = deviceName
         }
@@ -344,7 +344,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                             events: recordedEvents)
 
         let panel = NSSavePanel()
-        panel.title = "保存录制脚本"
+        panel.title = "Save Recorded Script"
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = defaultScriptName()
         panel.beginSheetModal(for: window) { [weak self] response in
@@ -355,16 +355,16 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             do {
                 try script.encoded().write(to: url)
             } catch {
-                self.showAlert("保存失败", error.localizedDescription)
+                self.showAlert("Save Failed", error.localizedDescription)
             }
         }
     }
 
     private func openPlayback() {
-        if isPlayingBack { stopPlayback(); reportInfo("回放已停止", point: nil); return }
-        guard !isRecording else { showAlert("回放失败", "请先结束录制。"); return }
+        if isPlayingBack { stopPlayback(); reportInfo("Playback Stopped", point: nil); return }
+        guard !isRecording else { showAlert("Playback Failed", "Stop recording first."); return }
         let panel = NSOpenPanel()
-        panel.title = "选择回放脚本（再次点击回放可停止）"
+        panel.title = "Choose a Playback Script (click Playback again to stop)"
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         panel.beginSheetModal(for: window) { [weak self] response in
@@ -380,10 +380,10 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             if case .recording(let recording) = script { play(recording) }
             else { playFlow(script) }
             controlInfoStore.setRunningScriptName(url.lastPathComponent)
-            reportInfo("回放中", point: nil)
+            reportInfo("Playing", point: nil)
             client?.log("[Replay] Running \(url.lastPathComponent)")
         } catch {
-            showAlert("回放失败", error.localizedDescription)
+            showAlert("Playback Failed", error.localizedDescription)
         }
     }
 
@@ -459,7 +459,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                     try DispatchQueue.main.sync {
                         guard self.playbackGeneration == generation, self.isPlayingBack,
                               !self.didFinish, !worker.isCancelled, self.client?.controlSender != nil else {
-                            throw replayError("回放已停止或设备状态已变化。")
+                            throw replayError("Playback stopped or device state changed.")
                         }
                     }
                 }
@@ -474,7 +474,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                     }, workflow: { loadedWorkflow in
                         let file = loadedWorkflow.file.standardizedFileURL.resolvingSymlinksInPath()
                         guard !ancestors.contains(file), ancestors.count < 64 else {
-                            throw replayError("脚本循环引用或嵌套超过 64 层：\(file.path)")
+                            throw replayError("Script cycle or nesting deeper than 64 levels: \(file.path)")
                         }
                         let nextAncestors = ancestors.union([file])
                         let workflowRunner = WorkflowRunner(checkCancelled: combinedCheck, script: { name, props, localCheck in
@@ -495,10 +495,10 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                             if kind == .skillCheck {
                                 guard parameters["model"] == .string("default"),
                                       parameters["threshold"] == .number(0) else {
-                                    throw replayError("skill_check 当前仅支持 model=default 和 threshold=0。")
+                                    throw replayError("skill_check currently only supports model=default and threshold=0.")
                                 }
                                 if !classifierStarted {
-                                    DispatchQueue.main.sync { self.reportInfo("分类器加载中", point: nil) }
+                                    DispatchQueue.main.sync { self.reportInfo("Loading Classifier", point: nil) }
                                     try worker.start(project: project)
                                     classifierStarted = true
                                 }
@@ -507,13 +507,13 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                             defer { try? FileManager.default.removeItem(at: workflowFrame) }
                             let size = try self.decoder.saveCurrentFrame(to: workflowFrame)
                             guard roi[0] + roi[2] <= Double(size.0), roi[1] + roi[3] <= Double(size.1) else {
-                                throw replayError("\(kind.rawValue) ROI 超出当前画面范围。")
+                                throw replayError("\(kind.rawValue) ROI exceeds the current frame.")
                             }
                             try DispatchQueue.main.sync {
                                 guard self.playbackGeneration == generation, self.isPlayingBack, !self.didFinish,
                                       self.client?.controlSender != nil,
                                       self.deviceWidth == UInt32(size.0), self.deviceHeight == UInt32(size.1) else {
-                                    throw replayError("视频尺寸已变化，回放已停止。")
+                                    throw replayError("Video size changed; playback stopped.")
                                 }
                             }
                             let normalized = [roi[0] / Double(size.0), roi[1] / Double(size.1),
@@ -525,12 +525,12 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                 return .string(text)
                             case .skillCheck:
                                 guard case .string(let skill) = parameters["skill"] else {
-                                    throw replayError("skill_check 缺少 skill。")
+                                    throw replayError("skill_check is missing skill.")
                                 }
                                 let labels = try worker.classify(frame: workflowFrame, regions: [skill: normalized])
                                 try localCheck()
                                 guard let label = labels[skill], label == "useable" || label == "not_useable" else {
-                                    throw replayError("分类器返回了缺失或未知的技能分类。")
+                                    throw replayError("Classifier returned a missing or unknown skill classification.")
                                 }
                                 return .object([
                                     "state": .string(label == "useable" ? "usable" : "unusable"),
@@ -547,7 +547,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                 try localCheck()
                                 return .number(percentage)
                             case .templateMatch:
-                                throw replayError("当前设备回放尚不支持 \(kind.rawValue)；需要对应的已校准视觉后端。")
+                                throw replayError("Current device playback does not support \(kind.rawValue) yet; it needs a matching calibrated vision backend.")
                             }
                         }, touch: { point, action in
                             try DispatchQueue.main.sync {
@@ -555,7 +555,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                       self.client?.controlSender != nil,
                                       point[0] < Double(self.deviceWidth), point[1] < Double(self.deviceHeight),
                                       self.deviceWidth > 0, self.deviceHeight > 0 else {
-                                    throw replayError("触摸坐标超出范围或设备状态已变化。")
+                                    throw replayError("Touch coordinates out of range or device state changed.")
                                 }
                                 let x = point[0] / Double(self.deviceWidth)
                                 let y = point[1] / Double(self.deviceHeight)
@@ -582,7 +582,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                         DispatchQueue.main.sync {
                             guard self.playbackGeneration == generation, self.isPlayingBack else { return }
                             self.controlInfoStore.setRunningScriptName(entry.name)
-                            self.reportInfo("回放中", point: nil)
+                            self.reportInfo("Playing", point: nil)
                             self.client?.log("[Flow] Running \(entry.name), id=\(entry.id)")
                         }
                     })
@@ -595,8 +595,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.playbackGeneration == generation, !self.didFinish else { return }
                 self.stopPlayback()
-                if let message { self.showAlert("回放失败", message) }
-                else { self.reportInfo("流程回放完成", point: nil) }
+                if let message { self.showAlert("Playback Failed", message) }
+                else { self.reportInfo("Flow Playback Complete", point: nil) }
             }
         }
     }
@@ -617,7 +617,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                 try DispatchQueue.main.sync {
                     guard self.playbackGeneration == generation, self.isPlayingBack, !self.didFinish,
                           self.client?.controlSender != nil else {
-                        throw replayError("回放已停止。")
+                        throw replayError("Playback stopped.")
                     }
                     self.executeEvent(event)
                     self.client?.log("[Replay v3 \(cycle)/\(script.playbackRepeatCount)] Event \(index + 1)/\(script.events.count)")
@@ -693,16 +693,16 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             guard let self, !self.didFinish else { return }
             self.stopPlayback()
             let alert = NSAlert()
-            alert.messageText = "连接失败"
+            alert.messageText = "Connection Failed"
             alert.informativeText = message
             alert.alertStyle = .warning
             if self.isPresented {
-                // 窗口已显示：在窗口上弹 sheet，关闭后结束会话。
+                // Window already shown: present a sheet, then end the session when closed.
                 alert.beginSheetModal(for: self.window) { _ in
                     self.window.close()
                 }
             } else {
-                // 窗口还没显示：用模态弹窗提示，结束后回到设备列表。
+                // Window not shown yet: show a modal alert, then return to the device list.
                 alert.runModal()
                 self.finish()
             }
@@ -719,11 +719,12 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         stopPlayback()
         client?.stop()
 
-        // 解除窗口与 delegate 的关联，避免关闭流程中回调已释放的控制器。
+        // Detach the window's delegate so closing can't call back into a freed controller.
         window.delegate = nil
 
-        // 延后回调到下一个 runloop，避免在 windowWillClose 调用栈内释放 self（窗口 delegate），
-        // 否则窗口关闭收尾阶段可能访问到已释放的 delegate 导致崩溃。
+        // Defer the callback to the next runloop so self (the window delegate) is not
+        // released inside the windowWillClose call stack; otherwise the window's close
+        // finalization could touch the freed delegate and crash.
         let onEnded = self.onEnded
         self.onEnded = nil
         if let onEnded {

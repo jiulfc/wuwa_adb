@@ -1,6 +1,6 @@
 import Foundation
 
-/// 常用 Android 按键码。
+/// Common Android key codes.
 enum AndroidKeyCode: Int32 {
     case home = 3
     case back = 4
@@ -11,9 +11,9 @@ enum AndroidKeyCode: Int32 {
     case delete = 67
 }
 
-/// 将输入事件按 scrcpy 控制协议序列化并发送。
+/// Serializes input events per the scrcpy control protocol and sends them.
 final class ControlSender {
-    // 控制消息类型（与 scrcpy server 的 ControlMessage 保持一致）。
+    // Control message types (matching ControlMessage in scrcpy server).
     private static let typeInjectKeycode: UInt8 = 0
     private static let typeInjectTouchEvent: UInt8 = 2
     private static let typeInjectScrollEvent: UInt8 = 3
@@ -23,10 +23,10 @@ final class ControlSender {
     private static let typeSetDisplayPower: UInt8 = 10
     private static let typeRotateDevice: UInt8 = 11
 
-    // 剪贴板复制键。
+    // Clipboard copy key.
     static let copyKeyCopy: UInt8 = 1
 
-    // MotionEvent 动作。
+    // MotionEvent actions.
     static let actionDown: UInt8 = 0
     static let actionUp: UInt8 = 1
     static let actionMove: UInt8 = 2
@@ -40,7 +40,7 @@ final class ControlSender {
 
     private func send(_ data: Data) {
         queue.async { [socket] in
-            do { try socket.write(data) } catch { /* 忽略写入错误 */ }
+            do { try socket.write(data) } catch { /* ignore write errors */ }
         }
     }
 
@@ -50,7 +50,7 @@ final class ControlSender {
         var d = Data()
         d.append(Self.typeInjectTouchEvent)
         d.append(action)
-        d.appendBE(Int64(-1))            // pointerId（鼠标）
+        d.appendBE(Int64(-1))            // pointerId (mouse)
         d.appendBE(x)
         d.appendBE(y)
         d.appendBE(screenWidth)
@@ -82,7 +82,7 @@ final class ControlSender {
         d.appendBE(screenHeight)
         d.appendBE(hScroll)
         d.appendBE(vScroll)
-        d.appendBE(Int32(1))             // buttons（主键按下）
+        d.appendBE(Int32(1))             // buttons (primary button pressed)
         send(d)
     }
 
@@ -121,7 +121,7 @@ final class ControlSender {
         send(d)
     }
 
-    /// 设置设备剪贴板，可选在设备上执行粘贴。
+    /// Sets the device clipboard, optionally pasting on the device.
     func sendSetClipboard(text: String, paste: Bool, sequence: UInt64 = 0) {
         var d = Data()
         d.append(Self.typeSetClipboard)
@@ -133,7 +133,7 @@ final class ControlSender {
         send(d)
     }
 
-    /// 请求设备剪贴板内容（设备会回发 TYPE_CLIPBOARD 消息）。
+    /// Requests the device clipboard contents (the device replies with a TYPE_CLIPBOARD message).
     func sendGetClipboard(copyKey: UInt8 = ControlSender.copyKeyCopy) {
         var d = Data()
         d.append(Self.typeGetClipboard)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 从 assets/icon.png 生成 assets/AppIcon.icns（含圆角处理，圆角半径约 22% 宽度）。
+# Generate assets/AppIcon.icns from assets/icon.png (with rounded corners, radius ~22% of the width).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -7,35 +7,35 @@ ICON="assets/icon.png"
 OUT="assets/AppIcon.icns"
 
 if [[ ! -f "$ICON" ]]; then
-    echo "缺少 $ICON"
+    echo "Missing: $ICON"
     exit 1
 fi
 
-# 源图或脚本有更新时重新生成。
+# Regenerate when the source image or this script has been updated.
 if [[ -f "$OUT" && "$OUT" -nt "$ICON" && "$OUT" -nt "$0" ]]; then
-    echo "AppIcon.icns 已是最新"
+    echo "AppIcon.icns is already up to date"
     exit 0
 fi
 
 if ! command -v magick >/dev/null 2>&1; then
-    echo "缺少 ImageMagick（magick 命令），无法处理圆角。请先安装：brew install imagemagick"
+    echo "Missing ImageMagick (magick command), cannot round corners. Install it first: brew install imagemagick"
     exit 1
 fi
 
 W=$(magick identify -format "%w" "$ICON")
 H=$(magick identify -format "%h" "$ICON")
-# 圆角半径 = 宽度的 22%（接近 macOS 图标比例）。
+# Corner radius = 22% of the width (close to macOS icon proportions).
 R=$((W * 22 / 100))
-# 图标内容缩放比例（%）：macOS 图标内容不应铺满画布，需留透明边距，内容约占 80%。
+# Icon content scale (%): macOS icon content should not fill the canvas; leave a transparent margin, with content at ~80%.
 ART_SCALE=80
 
 ROUNDED=".icon-rounded.png"
 TMP_ROUND=".icon-rounded-full.png"
-# 第一步：先给满幅图标套圆角（顺序不能反）。
+# Step 1: apply rounded corners to the full-bleed icon (the order must not be reversed).
 magick "$ICON" -alpha set \
   \( -size "${W}x${H}" xc:none -fill white -draw "roundrectangle 0,0,$((W-1)),$((H-1)),$R,$R" \) \
   -compose DstIn -composite "$TMP_ROUND"
-# 第二步：再缩放居中，四周留透明边距。
+# Step 2: then scale and center, leaving a transparent margin on all sides.
 magick "$TMP_ROUND" -resize "${ART_SCALE}%" \
   -gravity center -background none -extent "${W}x${H}" "$ROUNDED"
 rm -f "$TMP_ROUND"

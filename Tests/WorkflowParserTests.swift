@@ -33,7 +33,7 @@ struct WorkflowParserCheck {
         let runner = WorkflowRunner(checkCancelled: {}, script: { name, _, _ in scripts.append(name) },
             vision: { kind, _, parameters, _ in
                 visionKinds.append(kind)
-                if kind == .ocrText { return .string("确认") }
+                if kind == .ocrText { return .string("CONFIRM") }
                 precondition(parameters["template"] == .string("button.png"))
                 return .object(["found": .bool(true), "point": .array([.number(10), .number(12)])])
             }, touch: { _, action in touches.append(action) }, log: {
@@ -45,7 +45,7 @@ struct WorkflowParserCheck {
         precondition(scripts == ["child.json"])
         precondition(visionKinds == [.ocrText, .templateMatch])
         precondition(touches == [.down, .up, .down, .move, .up])
-        precondition(logs.contains("[Workflow] Step: type=ocr_text, output=text, text=\("确认".debugDescription)"))
+        precondition(logs.contains("[Workflow] Step: type=ocr_text, output=text, text=\("CONFIRM".debugDescription)"))
         precondition(logs.contains("[Workflow] Condition: type=if, matched=true"))
 
         let circle = try parse(#"[{"type":"circle_percentage","roi":[1270,1270,72,72],"profile":"default","output":"${n}"}]"#)
@@ -92,11 +92,11 @@ struct WorkflowParserCheck {
         let invalidNumberRunner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in },
             vision: { _, _, _, _ in .string("not a number") }, touch: { _, _ in }, log: { _ in })
         do { try invalidNumberRunner.run(invalidNumber); fatalError("Nonnumeric OCR accepted") }
-        catch { precondition(error.localizedDescription.contains("有效数字")) }
+        catch { precondition(error.localizedDescription.contains("valid number")) }
         let fractionalIntRunner = WorkflowRunner(checkCancelled: {}, script: { _, _, _ in },
             vision: { _, _, _, _ in .string("1.5") }, touch: { _, _ in }, log: { _ in })
         do { try fractionalIntRunner.run(invalidNumber); fatalError("Fractional int OCR accepted") }
-        catch { precondition(error.localizedDescription.contains("整数")) }
+        catch { precondition(error.localizedDescription.contains("integer")) }
 
         let contains = try parse(#"""
         [
@@ -143,7 +143,7 @@ struct WorkflowParserCheck {
         try runner.run(runUntil)
         let timeout = try parse(#"[{"type":"run_until","check_every_ms":5,"timeout_ms":20,"check":[],"until":false,"steps":[{"type":"while","condition":true,"steps":[{"type":"wait","wait_ms":5}]}]}]"#)
         do { try runner.run(timeout); fatalError("run_until timeout was ignored") }
-        catch { precondition(error.localizedDescription.contains("run_until 超时")) }
+        catch { precondition(error.localizedDescription.contains("run_until timed out")) }
 
         let runFor = try parse(#"[{"type":"run_for","duration_ms":20,"steps":[{"type":"tap","point":[1,2],"duration_ms":200}]}]"#)
         var runForTouches: [WorkflowTouchAction] = []

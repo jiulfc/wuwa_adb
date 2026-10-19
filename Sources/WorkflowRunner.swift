@@ -57,7 +57,7 @@ struct WorkflowRunner {
         case .script(let name, let input):
             let snapshot = variables.snapshot()
             let name = try string(name, snapshot)
-            guard !name.isEmpty else { throw replayError("script_name 不能为空。") }
+            guard !name.isEmpty else { throw replayError("script_name must not be empty.") }
             var props: [String: JSONValue]?
             if let input {
                 guard case .object(let object) = try value(input, snapshot) else {
@@ -69,7 +69,7 @@ struct WorkflowRunner {
         case .vision(let command):
             let snapshot = variables.snapshot()
             let roi = try coordinates(command.roi, snapshot, count: 4)
-            guard roi[2] > 0, roi[3] > 0 else { throw replayError("ROI 宽高必须为正数。") }
+            guard roi[2] > 0, roi[3] > 0 else { throw replayError("ROI width and height must be positive.") }
             var parameters: [String: JSONValue] = [:]
             for (name, input) in command.parameters { parameters[name] = try value(input, snapshot) }
             try validate(command.kind, parameters: parameters)
@@ -140,7 +140,7 @@ struct WorkflowRunner {
                           body: [Step], variables: WorkflowVariables,
                           parentCheck: @escaping WorkflowCancellationCheck) throws -> WorkflowSignal {
         let deadline = DispatchTime.now().uptimeNanoseconds + nanoseconds(timeout)
-        let cancellation = WorkflowConcurrentCancellation(deadline: deadline, timeoutMessage: "run_until 超时。")
+        let cancellation = WorkflowConcurrentCancellation(deadline: deadline, timeoutMessage: "run_until timed out.")
         let scopedCheck = { try cancellation.check(parent: parentCheck) }
 
         _ = try execute(checkSteps, variables: variables, check: scopedCheck)
@@ -228,28 +228,28 @@ struct WorkflowRunner {
         switch expression {
         case .literal(let value): return value
         case .variable(let name):
-            guard let value = variables[name] else { throw replayError("变量不存在：\(name)") }
+            guard let value = variables[name] else { throw replayError("Variable does not exist: \(name)") }
             return value
         case .member(let base, let name):
             let base = try value(base, variables)
             if case .array(let values) = base, name == "count" { return .number(Double(values.count)) }
             guard case .object(let object) = base, let value = object[name] else {
-                throw replayError("对象成员不存在：\(name)")
+                throw replayError("Object member does not exist: \(name)")
             }
             return value
         case .index(let base, let subscriptValue):
             guard case .array(let values) = try value(base, variables) else {
-                throw replayError("索引仅支持数组。")
+                throw replayError("Indexing is only supported on arrays.")
             }
             let rawIndex = try number(value(subscriptValue, variables))
             guard let index = Int(exactly: rawIndex), values.indices.contains(index) else {
-                throw replayError("数组索引超出范围。")
+                throw replayError("Array index out of range.")
             }
             return values[index]
         case .unary("!", let operand): return .bool(!(try boolean(value(operand, variables))))
         case .unary("-", let operand): return try finite(-number(value(operand, variables)))
         case .unary("+", let operand): return try finite(number(value(operand, variables)))
-        case .unary(let operation, _): throw replayError("不支持的一元运算：\(operation)")
+        case .unary(let operation, _): throw replayError("Unsupported unary operation: \(operation)")
         case .binary("&&", let left, let right):
             return .bool(try boolean(value(left, variables)) && boolean(value(right, variables)))
         case .binary("||", let left, let right):
@@ -262,7 +262,7 @@ struct WorkflowRunner {
             case "!=": return .bool(lhs != rhs)
             case "contains":
                 guard case .string(let text) = lhs, case .string(let phrase) = rhs else {
-                    throw replayError("contains 需要字符串。")
+                    throw replayError("contains requires strings.")
                 }
                 let actual = text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").lowercased()
                 let expected = phrase.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").lowercased()
@@ -276,7 +276,7 @@ struct WorkflowRunner {
             case "*": return try finite(number(lhs) * number(rhs))
             case "/": return try finite(number(lhs) / number(rhs))
             case "%": return try finite(number(lhs).truncatingRemainder(dividingBy: number(rhs)))
-            default: throw replayError("不支持的二元运算：\(operation)")
+            default: throw replayError("Unsupported binary operation: \(operation)")
             }
         }
     }
@@ -292,65 +292,65 @@ struct WorkflowRunner {
     }
 
     private func boolean(_ value: JSONValue) throws -> Bool {
-        guard case .bool(let result) = value else { throw replayError("条件必须是布尔值。") }
+        guard case .bool(let result) = value else { throw replayError("Condition must be a boolean.") }
         return result
     }
 
     private func number(_ value: JSONValue) throws -> Double {
-        guard case .number(let result) = value, result.isFinite else { throw replayError("需要有限数值。") }
+        guard case .number(let result) = value, result.isFinite else { throw replayError("A finite number is required.") }
         return result
     }
 
     private func finite(_ number: Double) throws -> JSONValue {
-        guard number.isFinite else { throw replayError("数值运算结果无效。") }
+        guard number.isFinite else { throw replayError("Numeric operation result is invalid.") }
         return .number(number)
     }
 
     private func converted(_ value: JSONValue, as type: VisionOutputType?) throws -> JSONValue {
         guard let type else { return value }
-        guard case .string(let raw) = value else { throw replayError("typed ocr_text 需要文字识别结果。") }
+        guard case .string(let raw) = value else { throw replayError("typed ocr_text requires a text recognition result.") }
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let number = Double(text), number.isFinite else { throw replayError("OCR 结果不是有效数字：\(raw)") }
+        guard let number = Double(text), number.isFinite else { throw replayError("OCR result is not a valid number: \(raw)") }
         if type == .int {
             guard number.rounded() == number, abs(number) <= 9_007_199_254_740_991 else {
-                throw replayError("OCR 结果不是可精确表示的整数：\(raw)")
+                throw replayError("OCR result is not an exactly representable integer: \(raw)")
             }
         }
         return .number(number)
     }
 
     private func string(_ input: Input, _ variables: [String: JSONValue]) throws -> String {
-        guard case .string(let result) = try value(input, variables) else { throw replayError("需要字符串。") }
+        guard case .string(let result) = try value(input, variables) else { throw replayError("A string is required.") }
         return result
     }
 
     private func milliseconds(_ input: Input, _ variables: [String: JSONValue], minimum: Int) throws -> Int {
         let value = try number(value(input, variables))
         guard value.rounded() == value, value >= Double(minimum), value <= Double(Int.max) / 1_000_000 else {
-            throw replayError("毫秒数必须是有效整数。")
+            throw replayError("Milliseconds must be a valid integer.")
         }
         return Int(value)
     }
 
     private func coordinates(_ input: Input, _ variables: [String: JSONValue], count: Int) throws -> [Double] {
         guard case .array(let values) = try value(input, variables), values.count == count else {
-            throw replayError("坐标需要 \(count) 个数值。")
+            throw replayError("Coordinates need \(count) numbers.")
         }
         let result = try values.map(number)
-        guard result.allSatisfy({ $0 >= 0 }) else { throw replayError("坐标不能为负数。") }
+        guard result.allSatisfy({ $0 >= 0 }) else { throw replayError("Coordinates must not be negative.") }
         return result
     }
 
     private func validate(_ kind: VisionKind, parameters: [String: JSONValue]) throws {
         func nonempty(_ name: String) throws {
             guard case .string(let value) = parameters[name], !value.isEmpty else {
-                throw replayError("\(name) 需要非空字符串。")
+                throw replayError("\(name) requires a non-empty string.")
             }
         }
         func threshold(_ minimum: Double) throws {
-            guard let input = parameters["threshold"] else { throw replayError("缺少 threshold。") }
+            guard let input = parameters["threshold"] else { throw replayError("Missing threshold.") }
             let value = try number(input)
-            guard value >= minimum, value <= 1 else { throw replayError("threshold 超出范围。") }
+            guard value >= minimum, value <= 1 else { throw replayError("threshold out of range.") }
         }
         switch kind {
         case .ocrText: break

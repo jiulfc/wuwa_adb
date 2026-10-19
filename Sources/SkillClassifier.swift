@@ -23,7 +23,7 @@ final class SkillClassifier {
         let helper = root.appendingPathComponent("live.py")
         guard FileManager.default.isExecutableFile(atPath: python.path),
               FileManager.default.isReadableFile(atPath: helper.path) else {
-            throw replayError("请在设置中选择 wuwa_classify 项目，确保 .venv/bin/python 和 live.py 存在。")
+            throw replayError("Select the wuwa_classify project in Settings and make sure .venv/bin/python and live.py exist.")
         }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let log = directory.appendingPathComponent("worker.log")
@@ -38,7 +38,7 @@ final class SkillClassifier {
         child.standardOutput = output
         child.standardError = logHandle
         lock.lock()
-        if cancelled { lock.unlock(); throw replayError("回放已停止。") }
+        if cancelled { lock.unlock(); throw replayError("Playback stopped.") }
         do {
             try child.run()
             process = child
@@ -51,17 +51,17 @@ final class SkillClassifier {
         try? output.fileHandleForWriting.close()
         try? input.fileHandleForReading.close()
         let ready = try receive(timeout: 60)
-        guard ready["ready"] as? Bool == true else { throw replayError("分类器未就绪。") }
+        guard ready["ready"] as? Bool == true else { throw replayError("Classifier not ready.") }
     }
 
     func classify(frame: URL, regions: [String: [Double]]) throws -> [String: String] {
-        if isCancelled { throw replayError("回放已停止。") }
+        if isCancelled { throw replayError("Playback stopped.") }
         var data = try JSONSerialization.data(withJSONObject: ["image": frame.path, "regions": regions])
         data.append(10)
         try input.fileHandleForWriting.write(contentsOf: data)
         let result = try receive(timeout: 15)
         guard let labels = result["labels"] as? [String: String] else {
-            throw replayError("分类器返回格式错误。")
+            throw replayError("Malformed classifier response.")
         }
         return labels
     }
@@ -74,18 +74,18 @@ final class SkillClassifier {
         while line.count < 1_048_576 {
             guard let byte = try output.fileHandleForReading.read(upToCount: 1), !byte.isEmpty else {
                 let log = (try? String(contentsOf: directory.appendingPathComponent("worker.log"), encoding: .utf8)) ?? ""
-                throw replayError("分类器退出或超时。\n" + String(log.suffix(4000)))
+                throw replayError("Classifier exited or timed out.\n" + String(log.suffix(4000)))
             }
             if byte[0] == 10 {
                 guard let response = try JSONSerialization.jsonObject(with: line) as? [String: Any] else {
-                    throw replayError("分类器返回格式错误。")
+                    throw replayError("Malformed classifier response.")
                 }
                 if let error = response["error"] as? String { throw replayError(error) }
                 return response
             }
             line.append(byte)
         }
-        throw replayError("分类器响应过长。")
+        throw replayError("Classifier response too long.")
     }
 
     func wait(until deadline: DispatchTime) {

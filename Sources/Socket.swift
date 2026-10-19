@@ -8,14 +8,14 @@ enum SocketError: Error {
 }
 
 extension Data {
-    /// 以网络字节序（大端）追加一个定长整数。
+    /// Appends a fixed-width integer in network byte order (big-endian).
     mutating func appendBE<T: FixedWidthInteger>(_ value: T) {
         var v = value.bigEndian
         Swift.withUnsafeBytes(of: &v) { append(contentsOf: $0) }
     }
 }
 
-/// 一个已连接的 POSIX 流套接字，提供精确读取/写入。
+/// A connected POSIX stream socket with exact read/write.
 final class PosixSocket {
     let fd: Int32
     private var closed = false
@@ -72,15 +72,16 @@ final class PosixSocket {
     func close() {
         if !closed {
             closed = true
-            // 先 shutdown 打断其它线程阻塞中的 read/write（macOS 上 close 不会可靠地打断），
-            // 避免 fd 被复用后后台线程读到错误数据导致崩溃。
+            // Shutdown first to interrupt read/write blocked in other threads
+            // (close does not reliably interrupt on macOS), avoiding a crash
+            // where a background thread reads wrong data after the fd is reused.
             _ = Darwin.shutdown(fd, SHUT_RDWR)
             Darwin.close(fd)
         }
     }
 }
 
-/// 监听 127.0.0.1 随机端口、接受设备反向连接进来的 TCP 服务器。
+/// A TCP server listening on a random 127.0.0.1 port for the device's reverse connection.
 final class TcpServer {
     private let listenFd: Int32
     let port: UInt16
@@ -92,7 +93,7 @@ final class TcpServer {
         var reuse: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
 
-        // 非阻塞，便于 accept 轮询 + 取消。
+        // Non-blocking, for accept polling + cancellation.
         let flags = fcntl(fd, F_GETFL, 0)
         _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
 
@@ -124,14 +125,14 @@ final class TcpServer {
         self.port = UInt16(bigEndian: got.sin_port)
     }
 
-    /// 在 timeout 秒内等待并接受一个连接；超时返回 nil。
+    /// Waits up to timeout seconds and accepts one connection; returns nil on timeout.
     func accept(timeout: TimeInterval) throws -> PosixSocket? {
         let deadline = Date().addingTimeInterval(timeout)
         while !closedFlag {
             let cfd = Darwin.accept(listenFd, nil, nil)
             if cfd >= 0 {
-                // macOS 上 accept() 出的 socket 会继承监听 socket 的 O_NONBLOCK，
-                // 这里恢复为阻塞模式，保证后续 read 阻塞等待数据。
+                // On macOS, sockets from accept() inherit the listening socket's O_NONBLOCK;
+                // restore blocking mode here so subsequent reads block waiting for data.
                 let fl = fcntl(cfd, F_GETFL, 0)
                 if fl >= 0 { _ = fcntl(cfd, F_SETFL, fl & ~O_NONBLOCK) }
                 return PosixSocket(fd: cfd)
@@ -155,7 +156,7 @@ final class TcpServer {
     }
 }
 
-/// 跨线程安全的布尔开关（用于取消后台网络循环）。
+/// Thread-safe boolean flag (for canceling background network loops).
 final class AtomicFlag {
     private let lock = NSLock()
     private var _value = false

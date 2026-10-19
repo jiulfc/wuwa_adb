@@ -1,13 +1,13 @@
 import AppKit
 
-/// 设置窗口：选择本地 ADB 命令位置、scrcpy-server 路径，以及截图保存目录。
+/// Settings window: pick the local ADB command location, the scrcpy-server path, and the screenshot save directory.
 final class SettingsWindowController: NSObject {
     private let window: NSWindow
     private let adbField = NSTextField(string: "")
     private let serverField = NSTextField(string: "")
     private let classifierField = NSTextField(string: "")
     private let captureField = NSTextField(string: "")
-    private let screenOffCheckbox = NSButton(checkboxWithTitle: "连接后关闭手机屏幕（下次连接生效）", target: nil, action: nil)
+    private let screenOffCheckbox = NSButton(checkboxWithTitle: "Turn off phone screen after connecting (applies to the next connection)", target: nil, action: nil)
 
     override init() {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 330),
@@ -19,12 +19,12 @@ final class SettingsWindowController: NSObject {
     }
 
     private func configure() {
-        window.title = "设置"
+        window.title = "Settings"
 
-        let adbLabel = NSTextField(labelWithString: "ADB 路径")
-        let serverLabel = NSTextField(labelWithString: "scrcpy-server 路径")
-        let classifierLabel = NSTextField(labelWithString: "wuwa_classify 项目")
-        let captureLabel = NSTextField(labelWithString: "截图保存目录")
+        let adbLabel = NSTextField(labelWithString: "ADB Path")
+        let serverLabel = NSTextField(labelWithString: "scrcpy-server Path")
+        let classifierLabel = NSTextField(labelWithString: "wuwa_classify Project")
+        let captureLabel = NSTextField(labelWithString: "Screenshot Directory")
         adbLabel.alignment = .right
         serverLabel.alignment = .right
         captureLabel.alignment = .right
@@ -34,11 +34,11 @@ final class SettingsWindowController: NSObject {
             field.lineBreakMode = .byTruncatingMiddle
         }
 
-        let adbBrowse = NSButton(title: "浏览…", target: self, action: #selector(browseAdb))
-        let serverBrowse = NSButton(title: "浏览…", target: self, action: #selector(browseServer))
-        let captureBrowse = NSButton(title: "浏览…", target: self, action: #selector(browseCapture))
+        let adbBrowse = NSButton(title: "Browse…", target: self, action: #selector(browseAdb))
+        let serverBrowse = NSButton(title: "Browse…", target: self, action: #selector(browseServer))
+        let captureBrowse = NSButton(title: "Browse…", target: self, action: #selector(browseCapture))
 
-        let classifierBrowse = NSButton(title: "浏览…", target: self, action: #selector(browseClassifier))
+        let classifierBrowse = NSButton(title: "Browse…", target: self, action: #selector(browseClassifier))
 
         let grid = NSGridView(views: [
             [adbLabel, adbField, adbBrowse],
@@ -51,7 +51,7 @@ final class SettingsWindowController: NSObject {
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).xPlacement = .fill
 
-        let saveButton = NSButton(title: "保存", target: self, action: #selector(save))
+        let saveButton = NSButton(title: "Save", target: self, action: #selector(save))
         saveButton.keyEquivalent = "\r"
         saveButton.bezelStyle = .rounded
 
@@ -92,16 +92,16 @@ final class SettingsWindowController: NSObject {
     }
 
     @objc private func browseAdb() {
-        pickFile(title: "选择 ADB 可执行文件", into: adbField)
+        pickFile(title: "Choose the ADB executable", into: adbField)
     }
 
     @objc private func browseServer() {
-        pickFile(title: "选择 scrcpy-server 文件", into: serverField)
+        pickFile(title: "Choose the scrcpy-server file", into: serverField)
     }
 
     @objc private func browseCapture() {
         let panel = NSOpenPanel()
-        panel.title = "选择截图保存目录"
+        panel.title = "Choose screenshot directory"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -115,7 +115,7 @@ final class SettingsWindowController: NSObject {
 
     @objc private func browseClassifier() {
         let panel = NSOpenPanel()
-        panel.title = "选择 wuwa_classify 项目目录"
+        panel.title = "Choose the wuwa_classify project directory"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false

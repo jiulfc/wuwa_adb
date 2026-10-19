@@ -1,23 +1,23 @@
 # Adb Quick
 
-macOS Swift 应用：借助 scrcpy server 端投屏并控制 Android 设备。
+A macOS Swift app that mirrors and controls an Android device via the scrcpy server.
 
-## 功能
+## Features
 
-- **设备列表**：居中 360 宽窗口，展示已连接 ADB 设备，右侧箭头选择，行底分隔线。
-- **实时渲染**：拿到视频尺寸后再显示（无跳变）；VideoToolbox 硬解 H.264；旋转自动适配。
-- **输入映射**：鼠标 → 触摸（含 Y 轴翻转修正）；滚轮 → 滚动；ESC/Backspace=返回、Cmd+Shift+H=主页、Cmd+Shift+R=旋转。
-- **双向剪贴板**：电脑 Cmd+V → 手机；手机复制 → 电脑剪贴板。
-- **控制面板**（Cmd+K，可置顶）：设备名/尺寸、当前操作 + 绝对/相对坐标；按钮：主页/返回/旋转/电源/截图/录制/回放。
-- **截图**：`adb screencap` 存 PNG，目录可配置（默认下载），保存后 Finder 定位。
-- **脚本录制/回放**：录制控制操作存 JSON，回放按时间轴重放；窗口标题显示「录制中/回放中」。
-- **条件回放**：仅支持 JSON v3；combat 使用 `while` / `skill_check` DSL，pickup 使用 `while` / `ocr_text` / `drag` DSL；支持嵌套、重复、技能区域、优先级、间隔和次数；从 scrcpy 解码帧调用持久 Python YOLO 分类器，点击首个可用技能；再次点击回放可停止。
-- **设置**：ADB 路径、scrcpy-server 路径、截图目录、wuwa_classify 项目目录。
+- **Device list**: a centered 360-wide window shows connected ADB devices; the arrow on the right selects one; separator lines under each row.
+- **Live rendering**: the window appears only after the video size is known (no jump); VideoToolbox hardware-decodes H.264; rotation adapts automatically.
+- **Input mapping**: mouse → touch (with Y-axis flip correction); wheel → scroll; ESC/Backspace = Back, Cmd+Shift+H = Home, Cmd+Shift+R = Rotate.
+- **Two-way clipboard**: Cmd+V on the computer → the phone; copying on the phone → the computer clipboard.
+- **Control panel** (Cmd+K, can float on top): device name/size, current action plus absolute/relative coordinates; buttons: Home/Back/Rotate/Power/Screenshot/Record/Replay.
+- **Screenshot**: `adb screencap` saved as PNG to a configurable directory (Downloads by default); revealed in Finder after saving.
+- **Script recording/replay**: records control actions to JSON and replays them along the timeline; the window title shows the recording/replaying status.
+- **Conditional replay**: JSON v3 only; combat uses the `while` / `skill_check` DSL, pickup uses the `while` / `ocr_text` / `drag` DSL; supports nesting, repetition, skill regions, priority, intervals, and counts; a persistent Python YOLO classifier runs on frames decoded from scrcpy and the first usable skill is clicked; clicking replay again stops it.
+- **Settings**: ADB path, scrcpy-server path, screenshot directory, wuwa_classify project directory.
 
-## 技术
+## Technology
 
-- 纯 Swift（AppKit），无第三方依赖（图标处理用 ImageMagick）。
-- 对接 scrcpy 5.0：push server、adb reverse 隧道、视频/控制双连接。
-- 解码：VTDecompressionSession 输出像素帧，AVSampleBufferDisplayLayer 显示；Annex-B→AVCC 单次遍历。
-- 关闭窗口：shutdown 打断 socket、移除 readabilityHandler、延迟释放 delegate，避免崩溃。
-- 构建：`./build.sh`（可执行）/ `./build_app.sh`（.app，含圆角图标）。
+- Pure Swift (AppKit), no third-party dependencies (ImageMagick is used for icon processing).
+- Targets scrcpy 5.0: push server, adb reverse tunnel, dual video/control connections.
+- Decoding: VTDecompressionSession outputs pixel frames, AVSampleBufferDisplayLayer displays them; Annex-B→AVCC in a single pass.
+- Closing the window: shutdown interrupts the socket, removes the readabilityHandler, and releases the delegate after a delay to avoid crashes.
+- Build: `./build.sh` (executable) / `./build_app.sh` (.app with a rounded icon).

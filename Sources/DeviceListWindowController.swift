@@ -1,6 +1,6 @@
 import AppKit
 
-/// 设备列表窗口：居中展示已连接设备（网格卡片），右上角刷新按钮，选择设备后镜像。
+/// Device list window: centered grid of connected devices, refresh button at top right, mirroring on selection.
 final class DeviceListWindowController: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate {
     private static let cardID = NSUserInterfaceItemIdentifier("DeviceCard")
 
@@ -25,10 +25,10 @@ final class DeviceListWindowController: NSObject, NSCollectionViewDataSource, NS
     private func configure() {
         window.title = "Adb Quick"
 
-        let titleLabel = NSTextField(labelWithString: "已连接的设备")
+        let titleLabel = NSTextField(labelWithString: "Connected Devices")
         titleLabel.font = .boldSystemFont(ofSize: 15)
 
-        refreshButton.title = "刷新"
+        refreshButton.title = "Refresh"
         refreshButton.bezelStyle = .rounded
         refreshButton.target = self
         refreshButton.action = #selector(refresh)
@@ -36,9 +36,9 @@ final class DeviceListWindowController: NSObject, NSCollectionViewDataSource, NS
         statusLabel.font = .systemFont(ofSize: 12)
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.lineBreakMode = .byTruncatingTail
-        statusLabel.stringValue = "正在刷新…"
+        statusLabel.stringValue = "Refreshing…"
 
-        // 网格布局（2 列卡片）
+        // Grid layout (2-column cards)
         let layout = NSCollectionViewFlowLayout()
         layout.itemSize = NSSize(width: 328, height: 52)
         layout.minimumInteritemSpacing = 8
@@ -54,7 +54,7 @@ final class DeviceListWindowController: NSObject, NSCollectionViewDataSource, NS
 
         scrollView.documentView = collectionView
         scrollView.hasVerticalScroller = true
-        scrollView.autohidesScrollers = true   // 内容少时不显示滚动条
+        scrollView.autohidesScrollers = true   // hide scrollers when content fits
         scrollView.drawsBackground = false
         collectionView.autoresizingMask = [.width]
 
@@ -98,13 +98,13 @@ final class DeviceListWindowController: NSObject, NSCollectionViewDataSource, NS
         window.orderOut(nil)
     }
 
-    /// 展示连接中的状态提示。
+    /// Shows the connecting status message.
     func showConnecting(_ text: String) {
         statusLabel.stringValue = text
     }
 
     @objc private func refresh() {
-        statusLabel.stringValue = "正在刷新…"
+        statusLabel.stringValue = "Refreshing…"
         let adb = AdbClient(adbPath: AppSettings.adbPath)
         DispatchQueue.global().async { [weak self] in
             do {
@@ -120,15 +120,15 @@ final class DeviceListWindowController: NSObject, NSCollectionViewDataSource, NS
                     self.devices = devices
                     self.collectionView.reloadData()
                     self.statusLabel.stringValue = devices.isEmpty
-                        ? "未检测到设备，请连接后点击刷新"
-                        : "共 \(devices.count) 台设备"
+                        ? "No devices detected; connect one and click Refresh"
+                        : "\(devices.count) device(s)"
                 }
             } catch {
                 DispatchQueue.main.async {
                     guard let self else { return }
                     self.devices = []
                     self.collectionView.reloadData()
-                    self.statusLabel.stringValue = "获取设备失败：\(error.localizedDescription)"
+                    self.statusLabel.stringValue = "Failed to list devices: \(error.localizedDescription)"
                 }
             }
         }
@@ -158,7 +158,7 @@ final class DeviceListWindowController: NSObject, NSCollectionViewDataSource, NS
     }
 }
 
-/// 设备卡片（网格单元）。
+/// Device card (grid cell).
 final class DeviceCardItem: NSCollectionViewItem {
     private let nameLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
@@ -194,7 +194,7 @@ final class DeviceCardItem: NSCollectionViewItem {
     }
 }
 
-/// 圆角卡片背景视图。
+/// Rounded card background view.
 final class DeviceCardView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)

@@ -39,7 +39,7 @@ struct WorkflowPropsCheck {
         rejects { _ = try WorkflowParser().parse(Data(#"{"version":3,"vars":{},"steps":[{"type":"script","script_name":"child.json","props":[] }]}"#.utf8)) }
         let dynamic = try WorkflowParser().parse(Data(#"{"version":3,"vars":{"bad":1},"steps":[{"type":"script","script_name":"child.json","props":"${bad}"}]}"#.utf8))
         rejects { try run(dynamic) }
-        let doc = try String(contentsOfFile: "scripts/json_dsl_schema.md", encoding: .utf8)
+        let doc = try String(contentsOfFile: "Schema.md", encoding: .utf8)
         let regex = try NSRegularExpression(pattern: "```json\n([\\s\\S]*?)\n```")
         let blocks = regex.matches(in: doc, range: NSRange(doc.startIndex..., in: doc))
         precondition(blocks.count == 1)

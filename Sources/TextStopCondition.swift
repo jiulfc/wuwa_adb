@@ -31,7 +31,7 @@ struct TextStopCondition: Decodable {
               region.count == 4, region.allSatisfy({ $0.isFinite }),
               region[0] >= 0, region[1] >= 0, region[2] > 0, region[3] > 0,
               region[0] + region[2] <= 1, region[1] + region[3] <= 1 else {
-            throw replayError("文字条件需要非空 text 字符串或非空字符串数组，以及有效的归一化区域 [x, y, width, height]。")
+            throw replayError("Text conditions need a non-empty text string or non-empty string array, plus a valid normalized region [x, y, width, height].")
         }
     }
 

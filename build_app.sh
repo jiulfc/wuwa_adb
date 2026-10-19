@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 编译并打包成 AdbQuick.app。
+# Compile and package into AdbQuick.app.
 set -euo pipefail
 cd "$(dirname "$0")"
 

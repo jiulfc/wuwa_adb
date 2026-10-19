@@ -1,16 +1,16 @@
 import Foundation
 
-/// 一条可回放的控制事件。
+/// One replayable control event.
 struct ScriptEvent: Codable {
     var type: String          // "touch" | "scroll" | "key"
     var label: String? = nil  // optional user comment
     var action: Int?          // touch: 0=down, 1=up, 2=move
-    var relX: Double?         // 相对横坐标 0~1
-    var relY: Double?         // 相对纵坐标 0~1
+    var relX: Double?         // relative x, 0~1
+    var relY: Double?         // relative y, 0~1
     var hScroll: Int16?
     var vScroll: Int16?
     var key: String?          // "home" | "back" | "rotate" | "power"
-    var t: Double             // 相对录制开始的时间（秒）
+    var t: Double             // seconds since recording start
 }
 
 extension ScriptEvent {
@@ -28,7 +28,7 @@ extension ScriptEvent {
     }
 }
 
-/// 一个录制脚本。
+/// One recorded script.
 struct Script: Codable {
     var version: Int = 3
     var label: String? = nil
@@ -40,9 +40,9 @@ struct Script: Codable {
     var playbackRepeatCount: Int { max(1, repeatCount ?? 1) }
 
     func validate() throws {
-        guard version == 3 else { throw replayError("录制脚本需要 version=3。") }
+        guard version == 3 else { throw replayError("Recorded scripts require version=3.") }
         guard events.allSatisfy({ $0.t.isFinite && $0.t >= 0 && $0.t < 1e9 }) else {
-            throw replayError("事件时间无效。")
+            throw replayError("Invalid event time.")
         }
     }
 

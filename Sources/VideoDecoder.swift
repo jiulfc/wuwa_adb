@@ -5,11 +5,11 @@ import VideoToolbox
 import CoreMedia
 import CoreImage
 
-/// Annex-B 格式 H.264 的 NAL 单元处理。
+/// NAL unit handling for Annex-B H.264.
 ///
 /// Convert Annex-B packets to the AVCC format consumed by VideoToolbox.
 enum AnnexB {
-    /// 单次遍历把 Annex-B 转成 AVCC，直接写目标 buffer，不做中间数组分配。
+    /// Converts Annex-B to AVCC in a single pass, writing straight into the target buffer without intermediate array allocations.
     static func toAVCC(_ data: Data) -> Data {
         var out = Data()
         let count = data.count
@@ -50,7 +50,7 @@ enum AnnexB {
         out.append(contentsOf: UnsafeBufferPointer(start: base + start, count: nalLen))
     }
 
-    /// 单次遍历提取 SPS（类型 7）与 PPS（类型 8），仅在首次遇到时拷贝。
+    /// Extracts SPS (type 7) and PPS (type 8) in a single pass, copying only on first encounter.
     static func parameterSets(from data: Data) -> (sps: Data?, pps: Data?) {
         var sps: Data?
         var pps: Data?
@@ -112,8 +112,8 @@ final class VideoDecoder {
         let frame = latestFrame
         let error = decodeError
         frameLock.unlock()
-        if let error { throw replayError("视频解码失败：\(error)") }
-        guard let frame else { throw replayError("尚无已解码的视频帧。") }
+        if let error { throw replayError("Video decode failed: \(error)") }
+        guard let frame else { throw replayError("No decoded video frame yet.") }
         let image = CIImage(cvPixelBuffer: frame)
         try imageContext.writePNGRepresentation(of: image, to: url, format: .RGBA8,
                                                colorSpace: CGColorSpaceCreateDeviceRGB())
@@ -165,7 +165,7 @@ final class VideoDecoder {
         self.layer = layer
     }
 
-    /// 会话切换（如旋转）时清空状态。
+    /// Clears state on session switches (e.g. rotation).
     func reset() {
         queue.async { [weak self] in
             self?.formatDescription = nil
@@ -173,7 +173,7 @@ final class VideoDecoder {
         }
     }
 
-    /// 解析配置包（SPS/PPS）并重建格式描述。
+    /// Parses a config packet (SPS/PPS) and rebuilds the format description.
     func setConfig(_ annexb: Data) {
         let (sps, pps) = AnnexB.parameterSets(from: annexb)
         guard let sps, let pps else { return }
@@ -210,7 +210,7 @@ final class VideoDecoder {
         }
     }
 
-    /// 送入一帧 Annex-B 视频数据并解码渲染。
+    /// Feeds one Annex-B video frame for decode and rendering.
     func enqueue(_ annexbFrame: Data) {
         queue.async { [weak self] in
             self?.enqueueInternal(annexbFrame)
@@ -262,7 +262,7 @@ final class VideoDecoder {
     }
 }
 
-/// 承载视频渲染与鼠标/键盘事件的视图。
+/// View hosting video rendering and mouse/keyboard events.
 final class VideoView: NSView {
     let displayLayer = AVSampleBufferDisplayLayer()
 

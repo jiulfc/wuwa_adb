@@ -1,6 +1,6 @@
 import AppKit
 
-/// 控制面板支持的动作。
+/// Actions supported by the control panel.
 enum ControlAction: Int {
     case home = 0
     case back = 1
@@ -11,7 +11,7 @@ enum ControlAction: Int {
     case playback = 6
 }
 
-/// 一次控制操作的信息：操作名 + 绝对坐标（设备像素）+ 相对坐标（0~1）。
+/// Info for one control operation: operation name + absolute coordinates (device pixels) + relative coordinates (0~1).
 final class ControlInfoStore {
     struct Entry {
         let operation: String
@@ -62,14 +62,14 @@ final class ControlInfoStore {
     }
 }
 
-/// 控制面板窗口：显示设备信息、当前操作与坐标，提供常用动作按钮，支持固定在最上方。
+/// Control panel window: shows device info, current operation and coordinates, offers common action buttons, and can float on top.
 final class ControlPanelWindowController: NSObject, NSWindowDelegate {
     private let window: NSWindow
-    private let deviceLabel = NSTextField(labelWithString: "设备: —")
-    private let operationLabel = NSTextField(labelWithString: "无操作")
-    private let absLabel = NSTextField(labelWithString: "绝对坐标: —")
-    private let relLabel = NSTextField(labelWithString: "相对坐标: —")
-    private let pinButton = NSButton(checkboxWithTitle: "置顶", target: nil, action: nil)
+    private let deviceLabel = NSTextField(labelWithString: "Device: —")
+    private let operationLabel = NSTextField(labelWithString: "No operation")
+    private let absLabel = NSTextField(labelWithString: "Absolute: —")
+    private let relLabel = NSTextField(labelWithString: "Relative: —")
+    private let pinButton = NSButton(checkboxWithTitle: "Always on Top", target: nil, action: nil)
     private let recordButton = NSButton()
     private let store: ControlInfoStore
 
@@ -91,10 +91,10 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
     }
 
     private func configure() {
-        window.title = "控制面板"
+        window.title = "Control Panel"
         window.delegate = self
 
-        let titleLabel = NSTextField(labelWithString: "控制面板")
+        let titleLabel = NSTextField(labelWithString: "Control Panel")
         titleLabel.font = .boldSystemFont(ofSize: 14)
 
         pinButton.target = self
@@ -108,9 +108,9 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
         relLabel.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
         relLabel.textColor = .secondaryLabelColor
 
-        // 动作按钮（第一行：设备操作）
+        // Action buttons (first row: device actions)
         let deviceActions: [(String, ControlAction)] = [
-            ("主页", .home), ("返回", .back), ("旋转", .rotate), ("电源", .power), ("截图", .screenshot),
+            ("Home", .home), ("Back", .back), ("Rotate", .rotate), ("Power", .power), ("Screenshot", .screenshot),
         ]
         let deviceButtons = deviceActions.map { (title, action) -> NSButton in
             let b = NSButton(title: title, target: self, action: #selector(actionTapped(_:)))
@@ -123,16 +123,16 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
         deviceStack.distribution = .fillEqually
         deviceStack.spacing = 8
 
-        // 动作按钮（第二行：脚本）
-        recordButton.title = "录制"
+        // Action buttons (second row: scripts)
+        recordButton.title = "Record"
         recordButton.bezelStyle = .rounded
         recordButton.target = self
         recordButton.action = #selector(actionTapped(_:))
         recordButton.tag = ControlAction.record.rawValue
-        let playbackButton = NSButton(title: "回放", target: self, action: #selector(actionTapped(_:)))
+        let playbackButton = NSButton(title: "Playback", target: self, action: #selector(actionTapped(_:)))
         playbackButton.bezelStyle = .rounded
         playbackButton.tag = ControlAction.playback.rawValue
-        // 用等宽占位视图，让「录制/回放」与第一行按钮保持同样宽度（各占 1/5）。
+        // Placeholder views keep Record/Playback the same width as the first-row buttons (1/5 each).
         let scriptStack = NSStackView(views: [recordButton, playbackButton, NSView(), NSView(), NSView()])
         scriptStack.orientation = .horizontal
         scriptStack.distribution = .fillEqually
@@ -188,12 +188,12 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
 
     private func render() {
         if store.deviceName.isEmpty {
-            deviceLabel.stringValue = "设备: —"
+            deviceLabel.stringValue = "Device: —"
         } else {
-            deviceLabel.stringValue = "设备: \(store.deviceName)  (\(store.deviceWidth) × \(store.deviceHeight))"
+            deviceLabel.stringValue = "Device: \(store.deviceName)  (\(store.deviceWidth) × \(store.deviceHeight))"
         }
-        recordButton.title = store.isRecording ? "停止" : "录制"
-        let operation = store.current?.operation ?? "无操作"
+        recordButton.title = store.isRecording ? "Stop" : "Record"
+        let operation = store.current?.operation ?? "No operation"
         operationLabel.stringValue = [
             store.runningScriptName.map { "script: \($0)" },
             store.scriptRepeatProgress.map { "round: \($0)" },
@@ -202,12 +202,12 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
         operationLabel.toolTip = operationLabel.stringValue
 
         guard let entry = store.current else {
-            absLabel.stringValue = "绝对坐标: —"
-            relLabel.stringValue = "相对坐标: —"
+            absLabel.stringValue = "Absolute: —"
+            relLabel.stringValue = "Relative: —"
             return
         }
-        absLabel.stringValue = String(format: "绝对坐标: (%d, %d)", entry.absX, entry.absY)
-        relLabel.stringValue = "相对坐标: (\(fmt(entry.relX)), \(fmt(entry.relY)))"
+        absLabel.stringValue = String(format: "Absolute: (%d, %d)", entry.absX, entry.absY)
+        relLabel.stringValue = "Relative: (\(fmt(entry.relX)), \(fmt(entry.relY)))"
     }
 
     private func fmt(_ v: Double) -> String {
@@ -218,7 +218,7 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
         return s
     }
 
-    /// 打开/关闭控制面板。
+    /// Opens or closes the control panel.
     func toggle() {
         if window.isVisible {
             window.orderOut(nil)

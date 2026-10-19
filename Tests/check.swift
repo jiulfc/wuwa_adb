@@ -106,6 +106,8 @@ struct Check {
     }
 
     static func checkTextStop() throws {
+        // The Chinese strings below are in-game OCR match data (the game client shows Chinese),
+        // so they are intentionally kept as data rather than translated app text.
         let alternatives = try JSONDecoder().decode(TextStopCondition.self,
             from: Data(#"{"text":["BATTLE DONE","领取"],"region":[0,0,1,1]}"#.utf8))
         try alternatives.validate()
@@ -149,11 +151,13 @@ struct Check {
         let bottom = TextStopCondition(text: "BATTLE DONE", region: [0, 0.5, 1, 0.5])
         let outside = try bottom.recognize(in: frame)
         precondition(!bottom.matches(outside), "OCR included text outside region")
+        // In-game claim text region ("claim" button); match strings are Chinese game text.
         let chinese = TextStopCondition(text: "领取", region: [216.0 / 3168, 400.0 / 1440, 174.0 / 3168, 46.0 / 1440])
         let demo = URL(fileURLWithPath: "demo.png")
         let start = Date()
         let chineseText = try chinese.recognize(in: demo)
         precondition(chinese.matches(chineseText), "OCR missed Chinese game text: \(chineseText)")
+        // In-game pickup text region ("absorb"); match string is Chinese game text.
         let pickup = TextStopCondition(text: "吸收", region: [1900.0 / 3168, 520.0 / 1440, 500.0 / 3168, 200.0 / 1440])
         let pickupText = try pickup.recognize(in: demo)
         precondition(pickup.matches(pickupText), "OCR missed pickup text: \(pickupText)")

@@ -1,6 +1,6 @@
 import AppKit
 
-// 解析命令行参数（主要用于调试：--mirror <serial> 直接镜像指定设备）。
+// Parse command-line arguments (mainly for debugging: --mirror <serial> mirrors the given device directly).
 let arguments = CommandLine.arguments
 let mirrorSerial: String? = {
     if let idx = arguments.firstIndex(of: "--mirror"), idx + 1 < arguments.count {
@@ -9,7 +9,7 @@ let mirrorSerial: String? = {
     return nil
 }()
 
-// 启动早期日志，便于排查 open 启动环境下的行为。
+// Early startup logging, to help diagnose behavior when launched via `open`.
 func earlyLog(_ message: String) {
     let line = "[startup] \(message)"
     let url = URL(fileURLWithPath: "/tmp/adbquick.log")
@@ -22,9 +22,9 @@ func earlyLog(_ message: String) {
         try? data.write(to: url, options: .atomic)
     }
 }
-earlyLog("启动, args=\(arguments), mirrorSerial=\(mirrorSerial ?? "nil")")
+earlyLog("Startup, args=\(arguments), mirrorSerial=\(mirrorSerial ?? "nil")")
 
-// 应用入口：手动搭建 NSApplication，保证无 .app 包裹也能正常显示菜单栏与窗口。
+// App entry point: set up NSApplication manually so the menu bar and windows work even without an .app bundle.
 let app = NSApplication.shared
 let delegate = AppDelegate(mirrorSerial: mirrorSerial)
 app.delegate = delegate
@@ -32,55 +32,55 @@ app.setActivationPolicy(.regular)
 
 let mainMenu = NSMenu()
 
-// 应用菜单
+// App menu
 let appMenuItem = NSMenuItem()
 mainMenu.addItem(appMenuItem)
 let appMenu = NSMenu()
-appMenu.addItem(withTitle: "关于 Adb Quick",
+appMenu.addItem(withTitle: "About Adb Quick",
                 action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                 keyEquivalent: "")
 appMenu.addItem(.separator())
 
-let settingsItem = NSMenuItem(title: "设置…",
+let settingsItem = NSMenuItem(title: "Settings…",
                               action: #selector(AppDelegate.openSettings),
                               keyEquivalent: ",")
 settingsItem.target = delegate
 appMenu.addItem(settingsItem)
 appMenu.addItem(.separator())
 
-appMenu.addItem(withTitle: "退出 Adb Quick",
+appMenu.addItem(withTitle: "Quit Adb Quick",
                 action: #selector(NSApplication.terminate(_:)),
                 keyEquivalent: "q")
 appMenuItem.submenu = appMenu
 
-// 视图菜单
+// View menu
 let viewMenuItem = NSMenuItem()
 mainMenu.addItem(viewMenuItem)
-let viewMenu = NSMenu(title: "视图")
-let controlPanelItem = NSMenuItem(title: "控制面板",
+let viewMenu = NSMenu(title: "View")
+let controlPanelItem = NSMenuItem(title: "Control Panel",
                                   action: #selector(AppDelegate.toggleControlPanel),
                                   keyEquivalent: "k")
 controlPanelItem.target = delegate
 viewMenu.addItem(controlPanelItem)
-let orchestrationItem = NSMenuItem(title: "流程编排器",
+let orchestrationItem = NSMenuItem(title: "Flow Orchestrator",
                                    action: #selector(AppDelegate.openOrchestration),
                                    keyEquivalent: "o")
 orchestrationItem.target = delegate
 viewMenu.addItem(orchestrationItem)
 viewMenuItem.submenu = viewMenu
 
-// 窗口菜单
+// Window menu
 let windowMenuItem = NSMenuItem()
 mainMenu.addItem(windowMenuItem)
-let windowMenu = NSMenu(title: "窗口")
-windowMenu.addItem(withTitle: "最小化",
+let windowMenu = NSMenu(title: "Window")
+windowMenu.addItem(withTitle: "Minimize",
                    action: #selector(NSWindow.performMiniaturize(_:)),
                    keyEquivalent: "m")
-windowMenu.addItem(withTitle: "缩放",
+windowMenu.addItem(withTitle: "Zoom",
                    action: #selector(NSWindow.performZoom(_:)),
                    keyEquivalent: "")
 windowMenu.addItem(.separator())
-windowMenu.addItem(withTitle: "前置全部窗口",
+windowMenu.addItem(withTitle: "Bring All to Front",
                    action: #selector(NSApplication.arrangeInFront(_:)),
                    keyEquivalent: "")
 windowMenuItem.submenu = windowMenu
