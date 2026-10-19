@@ -2,33 +2,35 @@
   "version": 3,
   "label": "OCR each pickup region",
   "vars": {
-    "rois": [
-      [2041, 589, 111, 46],
-      [2041, 715, 111, 46]
-    ],
-    "expected_text": "吸收",
+    "props": {
+      "expected_text": "吸收",
+      "rois": [
+        [2041, 589, 111, 46],
+        [2041, 715, 111, 46]
+      ]
+    },
     "index": 0,
     "text": ""
   },
   "steps": [
     {
       "type": "while",
-      "condition": "${index < rois.count}",
+      "condition": "${index < props.rois.count}",
       "steps": [
         {
           "type": "ocr_text",
-          "roi": "${rois[index]}",
+          "roi": "${props.rois[index]}",
           "output": "${text}"
         },
         {
           "type": "if",
-          "condition": "${text contains expected_text}",
+          "condition": "${text contains props.expected_text}",
           "then": [
             {
               "type": "tap",
               "point": [
-                "${rois[index][0] + rois[index][2] / 2}",
-                "${rois[index][1] + rois[index][3] / 2}"
+                "${props.rois[index][0] + props.rois[index][2] / 2}",
+                "${props.rois[index][1] + props.rois[index][3] / 2}"
               ],
               "duration_ms": 100
             },

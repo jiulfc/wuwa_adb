@@ -1,3 +1,0 @@
-# TODO
-
-prepare -> prepare + battle -> prepare with ORC + battle flow
