@@ -1,0 +1,15 @@
+{
+    "version": 3,
+    "vars": {
+        "max_loop": 50
+    },
+    "steps": [
+        {
+            "type": "script",
+            "script_name": "loop.json",
+            "props": {
+                "max_loop": "${max_loop}"
+            }
+        }
+    ]
+}

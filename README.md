@@ -145,3 +145,24 @@ Other checks have additional fixture requirements. In particular, `Tests/flow.sw
 - **Classifier fails:** verify the configured project's Python executable, `live.py`, and model. Temporary replay frames and worker logs are removed when replay cleanup finishes.
 - **Workflow coordinates fail:** recalibrate against the current device size and orientation using the Control Panel. Vision regions must fit inside the current frame.
 - Audio is disabled, and general keyboard typing/key mapping is not implemented. Use clipboard paste for text.
+
+### Debug window
+
+Open **View > Debug** for live playback status, selected script path, executing script,
+current step/event, repeat progress, the current script’s variables and props, latest workflow result/error, and
+device/input coordinates. While a subscript runs, its variables are shown. The console and `/tmp/adbquick.log`
+also receive variable snapshots when the script or values change. Parallel workflow
+steps show the latest activity; step numbers are local to their block. The window
+refreshes five times per second, supports text selection/copy, and has an **Always on
+Top** checkbox. The Control Panel is fixed at 460 points wide.
+
+Debug checks (from `wuwa_adb`, on macOS):
+
+```bash
+swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-debug-check \
+  Sources/WorkflowModel.swift Sources/WorkflowExpressionParser.swift \
+  Sources/WorkflowParser.swift Sources/WorkflowRunner.swift \
+  Sources/ControlPanelWindowController.swift Sources/DebugWindowController.swift \
+  Tests/DebugInfoTests.swift
+/tmp/adbquick-debug-check
+```

@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsController = SettingsWindowController()
     private let controlInfoStore = ControlInfoStore()
     private lazy var controlPanelController = ControlPanelWindowController(store: controlInfoStore)
+    private lazy var debugController = DebugWindowController(store: controlInfoStore)
     private lazy var orchestrationController = OrchestrationWindowController()
     private var streamingController: StreamingWindowController?
     private let mirrorSerial: String?
@@ -57,6 +58,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func toggleControlPanel() {
         controlPanelController.toggle()
+    }
+
+    @objc func openDebug() {
+        debugController.show()
     }
 
     @objc func openOrchestration() {

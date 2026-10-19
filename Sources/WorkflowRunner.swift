@@ -14,6 +14,8 @@ struct WorkflowRunner {
     let touch: ([Double], WorkflowTouchAction) throws -> Void
     let log: (String) -> Void
 
+    var debug: ((String, [String: JSONValue]) -> Void)? = nil
+
     func run(_ workflow: Workflow) throws {
         let variables = WorkflowVariables(workflow.variables)
         _ = try execute(workflow.steps, variables: variables, check: checkCancelled)
@@ -21,9 +23,12 @@ struct WorkflowRunner {
 
     private func execute(_ steps: [Step], variables: WorkflowVariables,
                          check: @escaping WorkflowCancellationCheck) throws -> WorkflowSignal {
-        for step in steps {
+        for (index, step) in steps.enumerated() {
             try check()
+            let label = "Step \(index + 1)/\(steps.count) in block · \(step.debugName)"
+            debug?(label, variables.snapshot())
             let signal = try execute(step, variables: variables, check: check)
+            debug?(label + " (finished)", variables.snapshot())
             if signal != .none { return signal }
         }
         return .none
@@ -444,5 +449,25 @@ private final class WorkflowConcurrentState: @unchecked Sendable {
 
     func wait(nanoseconds: UInt64) {
         _ = changed.wait(timeout: .now() + .nanoseconds(Int(nanoseconds)))
+    }
+}
+
+private extension Step {
+    var debugName: String {
+        switch self {
+        case .assign(let target, _): return "assign → \(target)"
+        case .whileLoop: return "while"
+        case .conditional: return "if"
+        case .runFor: return "run_for"
+        case .runUntil: return "run_until"
+        case .script: return "script"
+        case .vision(let command): return "\(command.kind.rawValue) → \(command.output)"
+        case .tap: return "tap"
+        case .drag: return "drag"
+        case .wait: return "wait"
+        case .breakLoop: return "break"
+        case .continueLoop: return "continue"
+        case .returnFromScript: return "return"
+        }
     }
 }

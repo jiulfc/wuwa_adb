@@ -2,14 +2,16 @@
   "version": 3,
   "vars": {
     "loop_count": 0,
-    "max_loop_count": 20,
     "battle_text": "",
-    "confirm_text": ""
+    "confirm_text": "",
+    "props": {
+      "max_loop": 10
+    }
   },
   "steps": [
     {
       "type": "while",
-      "condition": "${loop_count < max_loop_count}",
+      "condition": "${loop_count < props.max_loop}",
       "steps": [
         {
           "type": "assign",
@@ -29,12 +31,7 @@
         },
         {
           "type": "ocr_text",
-          "roi": [
-            1936,
-            875,
-            100,
-            46
-          ],
+          "roi": [1936, 875, 100, 46],
           "output": "${confirm_text}",
           "label": "check confirm need or not"
         },
@@ -44,10 +41,7 @@
           "then": [
             {
               "type": "tap",
-              "point": [
-                1986,
-                898
-              ],
+              "point": [1986, 898],
               "duration_ms": 100
             },
             {
@@ -70,12 +64,7 @@
           "check": [
             {
               "type": "ocr_text",
-              "roi": [
-                216,
-                400,
-                174,
-                46
-              ],
+              "roi": [216, 400, 174, 46],
               "output": "${battle_text}",
               "label": "battle done text"
             }

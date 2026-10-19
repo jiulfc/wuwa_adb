@@ -28,7 +28,20 @@ final class ControlInfoStore {
     private(set) var isRecording = false
     private(set) var runningScriptName: String?
     private(set) var scriptRepeatProgress: String?
+    var selectedScriptName: String?
+    var currentStep: String?
+    var variables: [String: JSONValue] = [:]
+    var latestWorkflowMessage: String?
+    var playbackStatus = "Idle"
     var onChange: (() -> Void)?
+
+    func updateWorkflowDebug(script: String, step: String, variables: [String: JSONValue]) -> Bool {
+        let changed = runningScriptName != script || self.variables != variables || currentStep == nil
+        setRunningScriptName(script)
+        currentStep = step
+        self.variables = variables
+        return changed
+    }
 
     func setDeviceName(_ name: String) {
         deviceName = name
@@ -57,18 +70,18 @@ final class ControlInfoStore {
     }
 
     func setRunningScriptName(_ name: String?) {
+        guard runningScriptName != name else { return }
+        currentStep = nil
+        variables = [:]
         runningScriptName = name
         onChange?()
     }
 }
 
-/// Control panel window: shows device info, current operation and coordinates, offers common action buttons, and can float on top.
+/// Control panel window: shows device info, offers common action buttons, and can float on top.
 final class ControlPanelWindowController: NSObject, NSWindowDelegate {
     private let window: NSWindow
     private let deviceLabel = NSTextField(labelWithString: "Device: —")
-    private let operationLabel = NSTextField(labelWithString: "No operation")
-    private let absLabel = NSTextField(labelWithString: "Absolute: —")
-    private let relLabel = NSTextField(labelWithString: "Relative: —")
     private let pinButton = NSButton(checkboxWithTitle: "Always on Top", target: nil, action: nil)
     private let recordButton = NSButton()
     private let store: ControlInfoStore
@@ -77,7 +90,7 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
 
     init(store: ControlInfoStore) {
         self.store = store
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 334),
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 180),
                           styleMask: [.titled, .closable],
                           backing: .buffered, defer: false)
         super.init()
@@ -101,13 +114,6 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
         pinButton.action = #selector(togglePin)
 
         deviceLabel.font = .systemFont(ofSize: 13)
-        operationLabel.font = .systemFont(ofSize: 13)
-        operationLabel.lineBreakMode = .byWordWrapping
-        operationLabel.maximumNumberOfLines = 3
-        absLabel.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-        relLabel.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-        relLabel.textColor = .secondaryLabelColor
-
         // Action buttons (first row: device actions)
         let deviceActions: [(String, ControlAction)] = [
             ("Home", .home), ("Back", .back), ("Rotate", .rotate), ("Power", .power), ("Screenshot", .screenshot),
@@ -115,36 +121,42 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
         let deviceButtons = deviceActions.map { (title, action) -> NSButton in
             let b = NSButton(title: title, target: self, action: #selector(actionTapped(_:)))
             b.bezelStyle = .rounded
+            b.controlSize = .small
+            b.font = .systemFont(ofSize: 11)
             b.tag = action.rawValue
             return b
         }
         let deviceStack = NSStackView(views: deviceButtons)
         deviceStack.orientation = .horizontal
         deviceStack.distribution = .fillEqually
-        deviceStack.spacing = 8
+        deviceStack.spacing = 4
 
         // Action buttons (second row: scripts)
         recordButton.title = "Record"
         recordButton.bezelStyle = .rounded
+        recordButton.font = .systemFont(ofSize: 11)
         recordButton.target = self
         recordButton.action = #selector(actionTapped(_:))
         recordButton.tag = ControlAction.record.rawValue
         let playbackButton = NSButton(title: "Playback", target: self, action: #selector(actionTapped(_:)))
         playbackButton.bezelStyle = .rounded
+        playbackButton.font = .systemFont(ofSize: 11)
         playbackButton.tag = ControlAction.playback.rawValue
-        // Placeholder views keep Record/Playback the same width as the first-row buttons (1/5 each).
-        let scriptStack = NSStackView(views: [recordButton, playbackButton, NSView(), NSView(), NSView()])
+        let scriptStack = NSStackView(views: [recordButton, playbackButton, NSView()])
         scriptStack.orientation = .horizontal
-        scriptStack.distribution = .fillEqually
+        scriptStack.distribution = .fill
         scriptStack.spacing = 8
 
         let content = window.contentView!
-        let subviews: [NSView] = [titleLabel, pinButton, deviceLabel, operationLabel, absLabel, relLabel, deviceStack, scriptStack]
+        let subviews: [NSView] = [titleLabel, pinButton, deviceLabel, deviceStack, scriptStack]
         for v in subviews {
             v.translatesAutoresizingMaskIntoConstraints = false
             content.addSubview(v)
         }
         NSLayoutConstraint.activate([
+            recordButton.widthAnchor.constraint(equalTo: deviceButtons[0].widthAnchor),
+            playbackButton.widthAnchor.constraint(equalTo: deviceButtons[0].widthAnchor),
+
             titleLabel.topAnchor.constraint(equalTo: content.topAnchor, constant: 14),
             titleLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
 
@@ -153,16 +165,6 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
 
             deviceLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
             deviceLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-
-            operationLabel.topAnchor.constraint(equalTo: deviceLabel.bottomAnchor, constant: 8),
-            operationLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            operationLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
-
-            absLabel.topAnchor.constraint(equalTo: operationLabel.bottomAnchor, constant: 8),
-            absLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-
-            relLabel.topAnchor.constraint(equalTo: absLabel.bottomAnchor, constant: 8),
-            relLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
 
             deviceStack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
             deviceStack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
@@ -193,29 +195,6 @@ final class ControlPanelWindowController: NSObject, NSWindowDelegate {
             deviceLabel.stringValue = "Device: \(store.deviceName)  (\(store.deviceWidth) × \(store.deviceHeight))"
         }
         recordButton.title = store.isRecording ? "Stop" : "Record"
-        let operation = store.current?.operation ?? "No operation"
-        operationLabel.stringValue = [
-            store.runningScriptName.map { "script: \($0)" },
-            store.scriptRepeatProgress.map { "round: \($0)" },
-            operation,
-        ].compactMap { $0 }.joined(separator: " · ")
-        operationLabel.toolTip = operationLabel.stringValue
-
-        guard let entry = store.current else {
-            absLabel.stringValue = "Absolute: —"
-            relLabel.stringValue = "Relative: —"
-            return
-        }
-        absLabel.stringValue = String(format: "Absolute: (%d, %d)", entry.absX, entry.absY)
-        relLabel.stringValue = "Relative: (\(fmt(entry.relX)), \(fmt(entry.relY)))"
-    }
-
-    private func fmt(_ v: Double) -> String {
-        if v == 0 { return "0" }
-        var s = String(format: "%.3f", v)
-        while s.hasSuffix("0") { s.removeLast() }
-        if s.hasSuffix(".") { s.removeLast() }
-        return s
     }
 
     /// Opens or closes the control panel.

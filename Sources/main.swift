@@ -62,6 +62,9 @@ let controlPanelItem = NSMenuItem(title: "Control Panel",
                                   keyEquivalent: "k")
 controlPanelItem.target = delegate
 viewMenu.addItem(controlPanelItem)
+let debugItem = NSMenuItem(title: "Debug", action: #selector(AppDelegate.openDebug), keyEquivalent: "")
+debugItem.target = delegate
+viewMenu.addItem(debugItem)
 let orchestrationItem = NSMenuItem(title: "Flow Orchestrator",
                                    action: #selector(AppDelegate.openOrchestration),
                                    keyEquivalent: "o")

@@ -379,6 +379,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             let script = try LoadedScript.load(from: url)
             if case .recording(let recording) = script { play(recording) }
             else { playFlow(script) }
+            controlInfoStore.selectedScriptName = url.path
+            controlInfoStore.playbackStatus = "Running"
             controlInfoStore.setRunningScriptName(url.lastPathComponent)
             reportInfo("Playing", point: nil)
             client?.log("[Replay] Running \(url.lastPathComponent)")
@@ -396,6 +398,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         playCycle(script, remaining: script.playbackRepeatCount, generation: generation) { [weak self] in
             self?.isPlayingBack = false
             self?.controlInfoStore.setRunningScriptName(nil)
+            self?.controlInfoStore.playbackStatus = "Completed"
+            self?.controlInfoStore.currentStep = nil
             self?.updateWindowTitle()
         }
     }
@@ -409,6 +413,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             let nanos = Int(event.t * 1_000_000_000)
             DispatchQueue.main.asyncAfter(deadline: started + .nanoseconds(nanos)) { [weak self] in
                 guard let self, self.playbackGeneration == generation, self.isPlayingBack else { return }
+                self.controlInfoStore.currentStep = "Event \(index + 1)/\(script.events.count) · \(event.type)"
+                self.controlInfoStore.setScriptRepeatProgress("\(cycle)/\(script.playbackRepeatCount)")
                 self.executeEvent(event)
                 let elapsed = Double(DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000_000
                 self.client?.log("[Replay v3 \(cycle)/\(script.playbackRepeatCount)] Event \(index + 1)/\(script.events.count): type=\(event.type), action=\(event.action ?? -1), scheduled=\(event.t)s, dispatched=\(elapsed)s")
@@ -436,6 +442,10 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         classifier?.stop()
         classifier = nil
         isPlayingBack = false
+        controlInfoStore.playbackStatus = "Stopped"
+        controlInfoStore.currentStep = nil
+        controlInfoStore.variables = [:]
+        controlInfoStore.latestWorkflowMessage = nil
         controlInfoStore.setRunningScriptName(nil)
         controlInfoStore.setScriptRepeatProgress(nil)
         updateWindowTitle()
@@ -481,11 +491,13 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                             let childURL = URL(fileURLWithPath: name, relativeTo: file.deletingLastPathComponent())
                             let child = try LoadedScript.load(from: childURL, props: props)
                             DispatchQueue.main.sync {
+                                guard self.playbackGeneration == generation, self.isPlayingBack else { return }
                                 self.controlInfoStore.setRunningScriptName(childURL.lastPathComponent)
                                 self.client?.log("[Workflow] Running \(childURL.lastPathComponent)")
                             }
                             defer {
                                 DispatchQueue.main.sync {
+                                    guard self.playbackGeneration == generation, self.isPlayingBack else { return }
                                     self.controlInfoStore.setRunningScriptName(file.lastPathComponent)
                                 }
                             }
@@ -569,7 +581,21 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                                 self.client?.log("[Workflow] Touch \(action.rawValue): pixel=(\(Int(point[0])), \(Int(point[1])))")
                             }
                         }, log: { message in
-                            DispatchQueue.main.sync { self.client?.log(message) }
+                            DispatchQueue.main.sync {
+                                guard self.playbackGeneration == generation, self.isPlayingBack else { return }
+                                self.controlInfoStore.latestWorkflowMessage = message
+                                self.client?.log(message)
+                            }
+                        }, debug: { step, variables in
+                            DispatchQueue.main.sync {
+                                guard self.playbackGeneration == generation, self.isPlayingBack else { return }
+                                if self.controlInfoStore.updateWorkflowDebug(script: file.lastPathComponent,
+                                                                             step: step, variables: variables) {
+                                    let lines = variables.keys.sorted().flatMap { variables[$0]!.debugLines(name: $0) }
+                                    self.client?.log("[Workflow] Vars · \(file.lastPathComponent)\n" +
+                                                     (lines.isEmpty ? "—" : lines.joined(separator: "\n")))
+                                }
+                            }
                         })
                         try workflowRunner.run(loadedWorkflow.workflow)
                     }, progress: { current, total in
@@ -582,6 +608,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                         DispatchQueue.main.sync {
                             guard self.playbackGeneration == generation, self.isPlayingBack else { return }
                             self.controlInfoStore.setRunningScriptName(entry.name)
+                            self.controlInfoStore.currentStep = "Flow entry: \(entry.id)"
                             self.reportInfo("Playing", point: nil)
                             self.client?.log("[Flow] Running \(entry.name), id=\(entry.id)")
                         }
@@ -595,6 +622,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.playbackGeneration == generation, !self.didFinish else { return }
                 self.stopPlayback()
+                self.controlInfoStore.playbackStatus = message == nil ? "Completed" : "Failed"
+                self.controlInfoStore.latestWorkflowMessage = message
                 if let message { self.showAlert("Playback Failed", message) }
                 else { self.reportInfo("Flow Playback Complete", point: nil) }
             }
@@ -619,6 +648,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
                           self.client?.controlSender != nil else {
                         throw replayError("Playback stopped.")
                     }
+                    self.controlInfoStore.currentStep = "Event \(index + 1)/\(script.events.count) · \(event.type)"
+                    self.controlInfoStore.setScriptRepeatProgress("\(cycle)/\(script.playbackRepeatCount)")
                     self.executeEvent(event)
                     self.client?.log("[Replay v3 \(cycle)/\(script.playbackRepeatCount)] Event \(index + 1)/\(script.events.count)")
                 }
