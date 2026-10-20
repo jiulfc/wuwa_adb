@@ -16,30 +16,39 @@
     ],
     "pickup_text": "",
     "pickup_region": 0,
-    "attempts": 0
+    "props": {
+      "max_phase": 20
+    }
   },
   "steps": [
     {
       "type": "while",
-      "condition": "${phase <= 20}",
+      "condition": "${phase <= props.max_phase}",
       "steps": [
         {
           "type": "assign",
-          "target": "${attempts}",
+          "target": "${pickup_region}",
           "value": 0
         },
         {
-          "type": "while",
-          "condition": "${attempts <= 3}",
-          "steps": [
+          "type": "ocr_text",
+          "roi": [2041, 589, 111, 46],
+          "output": "${pickup_text}"
+        },
+        {
+          "type": "if",
+          "condition": "${pickup_text contains '吸收'}",
+          "then": [
             {
               "type": "assign",
               "target": "${pickup_region}",
-              "value": 0
-            },
+              "value": 1
+            }
+          ],
+          "else": [
             {
               "type": "ocr_text",
-              "roi": [2041, 589, 111, 46],
+              "roi": [2041, 715, 111, 46],
               "output": "${pickup_text}"
             },
             {
@@ -49,37 +58,16 @@
                 {
                   "type": "assign",
                   "target": "${pickup_region}",
-                  "value": 1
-                }
-              ],
-              "else": [
-                {
-                  "type": "ocr_text",
-                  "roi": [2041, 715, 111, 46],
-                  "output": "${pickup_text}"
-                },
-                {
-                  "type": "if",
-                  "condition": "${pickup_text contains '吸收'}",
-                  "then": [
-                    {
-                      "type": "assign",
-                      "target": "${pickup_region}",
-                      "value": 2
-                    }
-                  ]
+                  "value": 2
                 }
               ]
-            },
-            {
-              "type": "if",
-              "condition": "${pickup_region == 0 || attempts == 3}",
-              "then": [
-                {
-                  "type": "break"
-                }
-              ]
-            },
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${pickup_region != 0}",
+          "then": [
             {
               "type": "tap",
               "point": "${pickup_points[pickup_region - 1]}",
@@ -90,15 +78,13 @@
               "wait_ms": 800
             },
             {
-              "type": "assign",
-              "target": "${attempts}",
-              "value": "${attempts + 1}"
+              "type": "return"
             }
           ]
         },
         {
           "type": "if",
-          "condition": "${phase == 20}",
+          "condition": "${phase == props.max_phase}",
           "then": [
             {
               "type": "break"
