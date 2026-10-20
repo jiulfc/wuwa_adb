@@ -1,0 +1,184 @@
+{
+  "version": 3,
+  "vars": {
+    "phase": 0,
+    "leg_ms": 500,
+    "remaining_ms": 500,
+    "directions": [
+      [
+        501,
+        880
+      ],
+      [
+        701,
+        1080
+      ],
+      [
+        501,
+        1280
+      ],
+      [
+        301,
+        1080
+      ]
+    ],
+    "pickup_points": [
+      [
+        2096.5,
+        612
+      ],
+      [
+        2096.5,
+        738
+      ]
+    ],
+    "pickup_text": "",
+    "pickup_region": 0,
+    "attempts": 0
+  },
+  "steps": [
+    {
+      "type": "while",
+      "condition": "${phase <= 20}",
+      "steps": [
+        {
+          "type": "assign",
+          "target": "${attempts}",
+          "value": 0
+        },
+        {
+          "type": "while",
+          "condition": "${attempts <= 3}",
+          "steps": [
+            {
+              "type": "assign",
+              "target": "${pickup_region}",
+              "value": 0
+            },
+            {
+              "type": "ocr_text",
+              "roi": [
+                2041,
+                589,
+                111,
+                46
+              ],
+              "output": "${pickup_text}"
+            },
+            {
+              "type": "if",
+              "condition": "${pickup_text contains '吸收'}",
+              "then": [
+                {
+                  "type": "assign",
+                  "target": "${pickup_region}",
+                  "value": 1
+                }
+              ],
+              "else": [
+                {
+                  "type": "ocr_text",
+                  "roi": [
+                    2041,
+                    715,
+                    111,
+                    46
+                  ],
+                  "output": "${pickup_text}"
+                },
+                {
+                  "type": "if",
+                  "condition": "${pickup_text contains '吸收'}",
+                  "then": [
+                    {
+                      "type": "assign",
+                      "target": "${pickup_region}",
+                      "value": 2
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "if",
+              "condition": "${pickup_region == 0 || attempts == 3}",
+              "then": [
+                {
+                  "type": "break"
+                }
+              ]
+            },
+            {
+              "type": "tap",
+              "point": "${pickup_points[pickup_region - 1]}",
+              "duration_ms": 100
+            },
+            {
+              "type": "wait",
+              "wait_ms": 800
+            },
+            {
+              "type": "assign",
+              "target": "${attempts}",
+              "value": "${attempts + 1}"
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${phase == 20}",
+          "then": [
+            {
+              "type": "break"
+            }
+          ]
+        },
+        {
+          "type": "drag",
+          "from": [
+            501,
+            1080
+          ],
+          "to": "${directions[phase % 4]}",
+          "duration_ms": 250
+        },
+        {
+          "type": "wait",
+          "wait_ms": 150
+        },
+        {
+          "type": "assign",
+          "target": "${remaining_ms}",
+          "value": "${remaining_ms - 250}"
+        },
+        {
+          "type": "if",
+          "condition": "${remaining_ms == 0}",
+          "then": [
+            {
+              "type": "assign",
+              "target": "${phase}",
+              "value": "${phase + 1}"
+            },
+            {
+              "type": "if",
+              "condition": "${phase % 2 == 0}",
+              "then": [
+                {
+                  "type": "assign",
+                  "target": "${leg_ms}",
+                  "value": "${leg_ms + 500}"
+                }
+              ]
+            },
+            {
+              "type": "assign",
+              "target": "${remaining_ms}",
+              "value": "${leg_ms}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -120,6 +120,11 @@ These scripts contain calibrated screen coordinates, Chinese OCR text, and route
 Run these checks from the repository root; they require no Android device or classifier:
 
 ```bash
+swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-pickup-check \
+  Sources/WorkflowModel.swift Sources/WorkflowExpressionParser.swift \
+  Sources/WorkflowParser.swift Sources/WorkflowRunner.swift Tests/PickupTests.swift
+/tmp/adbquick-pickup-check
+
 swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-props-check \
   Sources/WorkflowModel.swift Sources/WorkflowExpressionParser.swift \
   Sources/WorkflowParser.swift Sources/WorkflowRunner.swift \
