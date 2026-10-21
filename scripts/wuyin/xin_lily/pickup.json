@@ -1,0 +1,100 @@
+{
+  "version": 3,
+  "vars": {
+    "phase": 0,
+    "leg_ms": 500,
+    "remaining_ms": 500,
+    "directions": [
+      [501, 880],
+      [701, 1080],
+      [501, 1280],
+      [301, 1080]
+    ],
+    "pickup_text": "",
+    "props": {
+      "max_phase": 20
+    }
+  },
+  "steps": [
+    {
+      "type": "while",
+      "condition": "${phase <= props.max_phase}",
+      "steps": [
+        {
+          "type": "ocr_text",
+          "roi": [2044, 587, 185, 50],
+          "output": "${pickup_text}"
+        },
+        {
+          "type": "if",
+          "condition": "${pickup_text contains '领' || pickup_text contains '取' || pickup_text contains '奖' || pickup_text contains '励'}",
+          "then": [
+            {
+              "type": "tap",
+              "point": [2136.5, 612],
+              "duration_ms": 100
+            },
+            {
+              "type": "wait",
+              "wait_ms": 800
+            },
+            {
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${phase == props.max_phase}",
+          "then": [
+            {
+              "type": "break"
+            }
+          ]
+        },
+        {
+          "type": "drag",
+          "from": [501, 1080],
+          "to": "${directions[phase % 4]}",
+          "duration_ms": 250
+        },
+        {
+          "type": "wait",
+          "wait_ms": 150
+        },
+        {
+          "type": "assign",
+          "target": "${remaining_ms}",
+          "value": "${remaining_ms - 250}"
+        },
+        {
+          "type": "if",
+          "condition": "${remaining_ms == 0}",
+          "then": [
+            {
+              "type": "assign",
+              "target": "${phase}",
+              "value": "${phase + 1}"
+            },
+            {
+              "type": "if",
+              "condition": "${phase % 2 == 0}",
+              "then": [
+                {
+                  "type": "assign",
+                  "target": "${leg_ms}",
+                  "value": "${leg_ms + 500}"
+                }
+              ]
+            },
+            {
+              "type": "assign",
+              "target": "${remaining_ms}",
+              "value": "${leg_ms}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

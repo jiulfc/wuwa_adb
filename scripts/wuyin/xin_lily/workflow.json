@@ -1,0 +1,56 @@
+{
+  "version": 3,
+  "vars": {
+    "finish_text": "",
+    "finish_roi": [1440, 360, 298, 76],
+    "props": {}
+  },
+  "steps": [
+    {
+      "type": "script",
+      "script_name": "prepare.json",
+      "label": "prepare"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 1000
+    },
+    {
+      "type": "run_until",
+      "until": "${finish_text contains '挑' || finish_text contains '战' || finish_text contains '达' || finish_text contains '成'}",
+      "check_every_ms": 500,
+      "timeout_ms": 300000,
+      "check": [
+        {
+          "type": "ocr_text",
+          "roi": "${finish_roi}",
+          "output": "${finish_text}"
+        }
+      ],
+      "steps": [
+        {
+          "type": "script",
+          "script_name": "../../common/combat_role_katixiya.json"
+        }
+      ]
+    },
+    {
+      "type": "wait",
+      "wait_ms": 3000
+    },
+    {
+      "type": "script",
+      "script_name": "pickup.json",
+      "label": "pickup"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 3000
+    },
+    {
+      "type": "script",
+      "script_name": "finish.json",
+      "label": "finish"
+    }
+  ]
+}
