@@ -39,6 +39,8 @@ struct WorkflowRunner {
         switch step {
         case .assign(let target, let input):
             variables.set(target, to: try value(input, variables.snapshot()))
+        case .debug(let info):
+            log("[Workflow] Debug: \(try string(info, variables.snapshot()))")
         case .whileLoop(let condition, let steps):
             while try conditionResult("while", condition, variables.snapshot()) {
                 try check()
@@ -456,6 +458,7 @@ private extension Step {
     var debugName: String {
         switch self {
         case .assign(let target, _): return "assign → \(target)"
+        case .debug: return "debug"
         case .whileLoop: return "while"
         case .conditional: return "if"
         case .runFor: return "run_for"

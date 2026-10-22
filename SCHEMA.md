@@ -55,6 +55,10 @@ One parseable workflow showing every step type, all command fields, props defaul
       "value": 0
     },
     {
+      "type": "debug",
+      "info": "${wanted_text}"
+    },
+    {
       "type": "while",
       "condition": "${count < 3}",
       "steps": [
@@ -311,6 +315,7 @@ In the orchestration web page, select a `script` step to edit its optional `prop
 | Type | Input fields | Output / behavior |
 | --- | --- | --- |
 | `assign` | `target`: `${declared_variable}`; `value`: any input | Replaces the local variable. Member/index destinations such as `${props.x}` are not allowed; assign a whole object instead. |
+| `debug` | `info`: string | Writes the literal string or evaluated string parameter to the workflow log. |
 | `while` | `condition`: boolean; `steps`: step array | Repeats while true. No automatic iteration limit or delay. |
 | `if` | `condition`: boolean; `then`: step array; optional `else`: step array | Executes one branch; missing `else` does nothing. |
 | `run_for` | `duration_ms`: positive integer; `steps`: step array | Runs the body once, cancels it at the deadline, waits for it to stop, then continues. If the body finishes early, continues immediately. |
@@ -337,6 +342,7 @@ These fields apply at every nesting level. Required means required for the liste
 | All | `label` | Optional; omitted | Literal string | Annotation only. |
 | `assign` | `target` | Required | `${declared_variable}` | Whole local variable to replace; no member/index or typed destinations. |
 | `assign` | `value` | Required | Any JSON value or expression | Replacement value; nested arrays/objects may contain expressions. |
+| `debug` | `info` | Required | String or string-valued expression | Writes `[Workflow] Debug: ...` to the workflow log. |
 | `while`, `if` | `condition` | Required | Boolean | Loop condition or branch selector; no truthy coercion. |
 | `while`, `run_for`, `run_until` | `steps` | Required | Array of steps, possibly empty | Body; timing and cancellation follow the command table. |
 | `if` | `then` | Required | Array of steps, possibly empty | True branch. |

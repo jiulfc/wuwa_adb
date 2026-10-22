@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <title>Workflow Orchestrator — Diagram</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --ink: #172033;
+      --muted: #687386;
+      --line: #cbd2dc;
+      --line-strong: #8994a5;
+      --paper: #ffffff;
+      --canvas: #f4f6f9;
+      --navy: #111827;
+      --blue: #3366e8;
+      --blue-soft: #edf3ff;
+      --purple: #7557d5;
+      --purple-soft: #f2efff;
+      --amber: #c87917;
+      --amber-soft: #fff6e8;
+      --green: #16875e;
+      --green-soft: #eaf8f2;
+      --red: #c0393e;
+      --red-soft: #fff0f0;
+      --shadow: 0 8px 24px #18223514;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body { display: flex; flex-direction: column; color: var(--ink); background: var(--canvas); }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid #8eb0ff; outline-offset: 2px;
+    }
+    [hidden] { display: none !important; }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+
+    .topbar {
+      min-height: 68px; display: flex; align-items: center; gap: 18px; padding: 10px 18px;
+      color: #fff; background: var(--navy); border-bottom: 1px solid #27334a;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 220px; }
+    .brand-mark {
+      width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px;
+      background: linear-gradient(145deg, #6c8cff, #7c4fd4); box-shadow: 0 6px 18px #0005;
+    }
+    .brand-mark svg { width: 22px; height: 22px; }
+    .brand-title { font-size: 15px; font-weight: 750; letter-spacing: .01em; }
+    #workflowLabel { margin-top: 2px; color: #9eabc0; font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .toolbar { display: flex; align-items: center; gap: 7px; }
+    .toolbar button, .json-actions button {
+      min-height: 34px; padding: 6px 11px; border: 1px solid #3b465c; border-radius: 8px;
+      color: #e8edf6; background: #1b2537; cursor: pointer;
+    }
+    .toolbar button:hover { background: #26334a; border-color: #66738a; }
+    .toolbar .primary { color: #fff; background: var(--blue); border-color: #5480ef; }
+    #status { margin-left: auto; max-width: 320px; color: #9eabc0; font-size: 12px; text-align: right; }
+    #status.error { color: #ff999d; }
+
+    .workspace {
+      min-height: 0; flex: 1; display: grid;
+      grid-template-columns: 268px minmax(460px, 1fr) 300px;
+      grid-template-rows: minmax(0, 1fr); gap: 1px; background: var(--line);
+    }
+    .workspace.json-visible { grid-template-rows: minmax(320px, 1fr) 290px; }
+    .pane { min-width: 0; min-height: 0; background: var(--paper); }
+    .sidebar, .inspector { display: flex; flex-direction: column; }
+    .pane-heading { padding: 17px 16px 13px; border-bottom: 1px solid #e5e9ef; }
+    .pane-heading h2 { margin: 0; font-size: 13px; letter-spacing: .02em; }
+    .pane-heading p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .pane-scroll { min-height: 0; overflow: auto; padding: 14px; }
+
+    .target-card {
+      margin-bottom: 16px; padding: 11px; border: 1px solid #c9d8ff; border-radius: 10px;
+      background: var(--blue-soft);
+    }
+    .target-kicker { color: var(--blue); font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    #targetLabel { margin-top: 4px; font-size: 12px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+    .palette-group { margin: 17px 0 7px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .palette { display: grid; gap: 6px; }
+    .palette-item, .variables-button {
+      width: 100%; display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 7px 9px;
+      border: 1px solid #dce1e9; border-radius: 9px; background: #fff; text-align: left; cursor: grab;
+    }
+    .palette-item:hover, .variables-button:hover { border-color: #9bb5f7; background: #f7f9ff; }
+    .palette-item.dragging { opacity: .45; cursor: grabbing; }
+    .palette-icon { width: 18px; height: 18px; display: grid; place-items: center; color: var(--blue); font-size: 14px; font-weight: 800; }
+    .palette-item[data-group="logic"] .palette-icon { color: var(--purple); }
+    .palette-item[data-group="loop"] .palette-icon { color: var(--amber); }
+    .palette-item[data-group="terminal"] .palette-icon { color: var(--red); }
+    .palette-name { min-width: 0; flex: 1; font-size: 12px; font-weight: 650; }
+    .palette-type { color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .stage { position: relative; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); }
+    .stagebar {
+      min-height: 52px; display: flex; align-items: center; gap: 12px; padding: 8px 16px;
+      border-bottom: 1px solid #dfe4eb; background: #fff;
+    }
+    .stage-title { font-weight: 750; }
+    .legend { margin-left: auto; display: flex; align-items: center; gap: 13px; color: var(--muted); font-size: 11px; }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+    .legend i { width: 9px; height: 9px; border-radius: 3px; background: var(--blue); }
+    .legend .logic { background: var(--purple); transform: rotate(45deg); border-radius: 1px; }
+    .legend .loop { background: var(--amber); }
+    #diagramScroll {
+      min-height: 0; flex: 1; overflow: auto;
+      background-color: var(--canvas);
+      background-image: radial-gradient(#c8ced8 1px, transparent 1px);
+      background-size: 22px 22px;
+    }
+    #diagramScroll.drag-active { box-shadow: inset 0 0 0 3px #8eb0ff; }
+    #diagram { min-width: 100%; width: max-content; min-height: 100%; padding: 40px 70px 80px; }
+    .flow-root, .flow-sequence, .flow-step, .branch {
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .flow-root { min-width: 360px; }
+    .flow-sequence { min-width: 240px; }
+    .event-dot { width: 22px; height: 22px; flex: 0 0 22px; border: 5px solid #fff; border-radius: 50%; background: var(--navy); box-shadow: 0 0 0 2px var(--navy); }
+    .event-dot.end { background: #fff; border-color: var(--navy); box-shadow: 0 0 0 2px var(--navy); }
+    .connector { position: relative; z-index: 2; width: 2px; height: 34px; flex: 0 0 34px; background: var(--line-strong); }
+    .connector.arrow::after {
+      content: ""; position: absolute; left: 50%; bottom: -1px; width: 8px; height: 8px;
+      border-right: 2px solid var(--line-strong); border-bottom: 2px solid var(--line-strong); transform: translateX(-50%) rotate(45deg);
+    }
+    .flow-step { position: relative; }
+    .node-row { position: relative; display: flex; align-items: center; justify-content: center; }
+    .flow-node {
+      position: relative; z-index: 1; width: 252px; min-height: 78px; padding: 12px 15px 12px 18px;
+      border: 1px solid #aeb7c5; border-radius: 11px;
+      color: var(--ink); background: #fff; box-shadow: 0 4px 12px #1d293d12; text-align: left; cursor: pointer;
+    }
+    .flow-node:hover { transform: translateY(-1px); box-shadow: 0 8px 20px #1d293d1d; }
+    .flow-node.selected { box-shadow: 0 0 0 3px #8eb0ff, 0 8px 20px #1d293d1d; }
+    .flow-node.logic { background: #fdfcff; }
+    .flow-node.loop { background: #fffdfa; }
+    .flow-node.terminal { background: #fffdfd; }
+    .flow-node.drop-ready { box-shadow: 0 -5px 0 var(--blue), 0 8px 20px #1d293d1d; }
+    .node-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .node-type {
+      padding: 3px 6px; border-radius: 5px; color: var(--blue); background: var(--blue-soft);
+      font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 750; text-transform: uppercase;
+    }
+    .flow-node.logic .node-type { color: var(--purple); background: var(--purple-soft); }
+    .flow-node.loop .node-type { color: var(--amber); background: var(--amber-soft); }
+    .flow-node.terminal .node-type { color: var(--red); background: var(--red-soft); }
+    .node-index { margin-left: auto; color: #98a1b0; font-size: 10px; }
+    .node-title { display: block; font-size: 13px; font-weight: 760; line-height: 1.35; overflow-wrap: anywhere; }
+    .node-summary { display: block; margin-top: 4px; color: var(--muted); font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+    .node-actions {
+      position: absolute; z-index: 3; left: calc(100% + 8px); display: flex; gap: 4px;
+      opacity: 0; transform: translateX(-4px); transition: opacity .12s, transform .12s;
+    }
+    .node-row:hover .node-actions, .node-row:focus-within .node-actions { opacity: 1; transform: none; }
+    .node-actions button {
+      width: 28px; height: 28px; padding: 0; border: 1px solid #ccd3dd; border-radius: 7px; background: #fff; cursor: pointer;
+      box-shadow: 0 3px 8px #1d293d18;
+    }
+    .node-actions button:hover { border-color: var(--blue); color: var(--blue); }
+    .node-actions .delete:hover { border-color: var(--red); color: var(--red); }
+
+    .flow-node.decision {
+      width: 184px; min-height: 124px; padding: 26px 27px; border: 0; border-radius: 0;
+      clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: var(--purple-soft); text-align: center;
+      box-shadow: inset 0 0 0 2px var(--purple);
+    }
+    .flow-node.decision .node-top { justify-content: center; margin-bottom: 5px; }
+    .flow-node.decision .node-index { display: none; }
+    .flow-node.decision .node-title { font-size: 12px; }
+    .flow-node.decision .node-summary { max-height: 34px; overflow: hidden; font-size: 10px; }
+
+    .branch-board {
+      position: relative; display: grid; grid-auto-flow: column; width: max-content; gap: 58px;
+    }
+    .branch-board[data-branches="1"] { grid-template-columns: minmax(260px, max-content); }
+    .branch-board[data-branches="2"] { grid-template-columns: repeat(2, minmax(260px, 1fr)); }
+    .branch-board[data-branches="2"]::before,
+    .branch-board[data-branches="2"]::after {
+      content: ""; position: absolute; left: calc(25% - 14.5px); right: calc(25% - 14.5px);
+      height: 2px; background: var(--line-strong);
+    }
+    .branch-board[data-branches="2"]::before { top: 0; }
+    .branch-board[data-branches="2"]::after { bottom: 0; }
+    .branch { position: relative; min-width: 260px; align-self: stretch; }
+    .branch::before { content: ""; width: 2px; height: 18px; background: var(--line-strong); }
+    .branch::after { content: ""; width: 2px; min-height: 24px; flex: 1; background: var(--line-strong); }
+    .branch-label {
+      position: relative; z-index: 1; max-width: 210px; margin-bottom: 2px; padding: 4px 9px;
+      border: 1px solid #d6dce5; border-radius: 999px; color: var(--muted); background: #fff;
+      font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; text-align: center;
+    }
+    .branch.active .branch-label { color: var(--blue); border-color: #9ab4f6; background: var(--blue-soft); }
+    .merge { width: 15px; height: 15px; border: 2px solid var(--line-strong); background: var(--canvas); transform: rotate(45deg); }
+    .run-until-board {
+      width: max-content; min-width: 590px; padding: 15px 20px 20px; border: 2px solid #d4a65e;
+      border-radius: 14px; background: #fffaf1; box-shadow: 0 5px 16px #5d3a0814;
+    }
+    .run-until-heading { margin-bottom: 13px; color: #8b5914; font-size: 11px; font-weight: 750; text-align: center; }
+    .run-until-lanes { display: flex; align-items: stretch; gap: 30px; }
+    .run-until-lane { min-width: 250px; display: flex; flex-direction: column; align-items: center; }
+    .run-until-lane + .run-until-lane { padding-left: 30px; border-left: 2px solid #e5c99d; }
+    .run-until-lane .branch-label { color: #8b5914; border-color: #dfbd86; background: #fff; }
+    .run-until-exit {
+      max-width: 440px; padding: 8px 13px; border: 1px solid #d4a65e; border-radius: 8px;
+      color: #75480b; background: var(--amber-soft); font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center;
+    }
+    .empty-lane, .add-here {
+      min-width: 210px; padding: 8px 12px; border: 1px dashed #aab4c3; border-radius: 9px;
+      color: var(--muted); background: #ffffffb8; font-size: 11px; cursor: pointer;
+    }
+    .empty-lane:hover, .add-here:hover, .add-here.active { color: var(--blue); border-color: var(--blue); background: var(--blue-soft); }
+    .empty-lane.drop-ready, .add-here.drop-ready { color: #fff; border-color: var(--blue); background: var(--blue); }
+    .add-here { margin-top: 12px; min-width: 118px; }
+
+    .inspector-empty { margin: 8px 2px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .inspector-step { margin-bottom: 16px; padding-bottom: 13px; border-bottom: 1px solid #e5e9ef; }
+    .inspector-name { font-size: 14px; font-weight: 760; }
+    .inspector-type { display: inline-block; margin-top: 5px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .field { margin-bottom: 13px; }
+    .field label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 650; }
+    .field input:not([type="checkbox"]), .field textarea, #varsEditor {
+      width: 100%; border: 1px solid #cbd2dc; border-radius: 8px; padding: 8px 9px; color: var(--ink); background: #fff;
+    }
+    .field textarea, #varsEditor { min-height: 74px; resize: vertical; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    #varsEditor { min-height: 210px; }
+    .apply-button {
+      padding: 7px 10px; border: 1px solid #9db6ef; border-radius: 8px; color: var(--blue); background: var(--blue-soft); cursor: pointer;
+    }
+
+    .json-panel { grid-column: 1 / -1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: #111827; }
+    .json-head { display: flex; align-items: center; padding: 8px 12px; color: #dce4f1; border-bottom: 1px solid #2c374b; }
+    .json-head h2 { margin: 0; font-size: 12px; }
+    #jsonEditor {
+      min-height: 0; flex: 1; resize: none; border: 0; padding: 12px 15px; color: #dce4f1; background: #111827;
+      font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .json-actions { display: flex; gap: 7px; padding: 8px 12px; border-top: 1px solid #2c374b; }
+
+    @media (max-width: 1060px) {
+      .workspace { grid-template-columns: 230px minmax(430px, 1fr) 270px; }
+      .brand { min-width: 210px; }
+      .toolbar button { padding-inline: 8px; }
+      #status { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="4" r="2"></circle><path d="M12 6v4m0 0-5 4m5-4 5 4M7 14v4m10-4v4"></path><circle cx="7" cy="20" r="2"></circle><circle cx="17" cy="20" r="2"></circle>
+        </svg>
+      </div>
+      <div><div class="brand-title">Flow Orchestrator</div><div id="workflowLabel">Untitled workflow</div></div>
+    </div>
+    <div class="toolbar" role="toolbar" aria-label="Workflow actions">
+      <button id="newButton" type="button">New</button>
+      <button id="openButton" type="button">Open…</button>
+      <button id="saveButton" class="primary" type="button">Save</button>
+      <button id="saveAsButton" type="button">Save As…</button>
+      <button id="toggleJsonButton" type="button" aria-controls="jsonPanel" aria-expanded="false">JSON</button>
+    </div>
+    <div id="status" role="status" aria-live="polite">Ready</div>
+  </header>
+
+  <main class="workspace">
+    <aside class="pane sidebar" aria-labelledby="paletteTitle">
+      <div class="pane-heading"><h2 id="paletteTitle">Building blocks</h2><p>Choose where to insert, then add a command.</p></div>
+      <div class="pane-scroll">
+        <div class="target-card"><div class="target-kicker">Insert target</div><div id="targetLabel">Workflow</div></div>
+        <button id="variablesButton" class="variables-button" type="button"><span class="palette-icon">{ }</span><span class="palette-name">Variables</span></button>
+        <div id="palette"></div>
+      </div>
+    </aside>
+
+    <section class="pane stage" aria-labelledby="diagramTitle">
+      <div class="stagebar">
+        <div id="diagramTitle" class="stage-title">Logic flow</div>
+        <div class="legend" aria-label="Diagram legend">
+          <span><i></i> Action</span><span><i class="logic"></i> Decision</span><span><i class="loop"></i> Loop</span>
+        </div>
+      </div>
+      <div id="diagramScroll"><div id="diagram"></div></div>
+    </section>
+
+    <aside class="pane inspector" aria-labelledby="inspectorTitle">
+      <div class="pane-heading"><h2 id="inspectorTitle">Inspector</h2><p>Edit the selected node without leaving the flow.</p></div>
+      <div class="pane-scroll">
+        <p id="inspectorEmpty" class="inspector-empty">Select a diagram node to edit its values, or open Variables from the building blocks panel.</p>
+        <div id="inspectorContent" hidden>
+          <div class="inspector-step"><div id="inspectorName" class="inspector-name"></div><div id="inspectorType" class="inspector-type"></div></div>
+          <form id="inspectorForm"></form>
+        </div>
+        <div id="variablesContent" hidden>
+          <div class="inspector-step"><div class="inspector-name">Workflow variables</div><div class="inspector-type">vars</div></div>
+          <label class="sr-only" for="varsEditor">Variables JSON object</label>
+          <textarea id="varsEditor" spellcheck="false"></textarea>
+          <button id="applyVarsButton" class="apply-button" type="button">Apply variables</button>
+        </div>
+      </div>
+    </aside>
+
+    <section id="jsonPanel" class="json-panel" aria-labelledby="jsonTitle" hidden>
+      <div class="json-head"><h2 id="jsonTitle">JSON DSL v3</h2></div>
+      <label class="sr-only" for="jsonEditor">Complete workflow JSON</label>
+      <textarea id="jsonEditor" spellcheck="false"></textarea>
+      <div class="json-actions">
+        <button id="applyJsonButton" type="button">Apply to diagram</button>
+        <button id="formatButton" type="button">Format</button>
+        <button id="validateButton" type="button">Validate</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    'use strict';
+
+    const templates = {
+      assign: { type: 'assign', target: '${counter}', value: '${counter + 1}' },
+      while: { type: 'while', condition: '${counter < 1}', steps: [] },
+      if: { type: 'if', condition: true, then: [], else: [] },
+      run_for: { type: 'run_for', duration_ms: 16000, steps: [] },
+      run_until: { type: 'run_until', check_every_ms: 500, timeout_ms: 30000, check: [], until: '${done}', steps: [] },
+      script: { type: 'script', script_name: 'child.json' },
+      ocr_text: { type: 'ocr_text', roi: [0, 0, 100, 100], output: '${text}' },
+      template_match: { type: 'template_match', roi: [0, 0, 100, 100], template: 'button.png', threshold: 0.8, output: '${result}' },
+      skill_check: { type: 'skill_check', roi: [0, 0, 100, 100], model: 'model.onnx', skill: 'skill', threshold: 0.8, output: '${result}' },
+      circle_percentage: { type: 'circle_percentage', roi: [0, 0, 100, 100], profile: 'default', output: '${result}' },
+      tap: { type: 'tap', point: [100, 100], duration_ms: 100 },
+      drag: { type: 'drag', from: [100, 100], to: [100, 200], duration_ms: 250 },
+      wait: { type: 'wait', wait_ms: 500 },
+      break: { type: 'break' },
+      continue: { type: 'continue' },
+      return: { type: 'return' }
+    };
+    const meta = {
+      assign: ['Assignment', 'action', 'A'], while: ['While loop', 'loop', '↻'], if: ['Condition', 'logic', '◇'],
+      run_for: ['Timed loop', 'loop', '◷'], run_until: ['Run until', 'loop', '↻'], script: ['Subflow', 'action', '↗'],
+      ocr_text: ['Read text', 'action', 'T'], template_match: ['Match image', 'action', '▧'], skill_check: ['Skill check', 'logic', '✓'],
+      circle_percentage: ['Measure circle', 'action', '%'], tap: ['Tap', 'action', '●'], drag: ['Drag', 'action', '↘'],
+      wait: ['Wait', 'action', '◷'], break: ['Break', 'terminal', '■'], continue: ['Continue', 'terminal', '→'], return: ['Return', 'terminal', '↩']
+    };
+    const nestedKeys = { while: ['steps'], if: ['then', 'else'], run_for: ['steps'], run_until: ['steps', 'check'] };
+    const branchNames = {
+      while: { steps: 'Loop body' }, if: { then: 'Yes · then', else: 'No · else' },
+      run_for: { steps: 'Timed body' }, run_until: { steps: 'Do', check: 'Check condition' }
+    };
+    const paletteGroups = [
+      ['Logic', ['if', 'assign', 'script']], ['Loops', ['while', 'run_for', 'run_until']],
+      ['Vision', ['ocr_text', 'template_match', 'skill_check', 'circle_percentage']],
+      ['Device', ['tap', 'drag', 'wait']], ['Flow control', ['break', 'continue', 'return']]
+    ];
+
+    function copy(value) { return JSON.parse(JSON.stringify(value)); }
+    function newDocument() { return { version: 3, vars: { counter: 0, done: false, text: '', result: null }, steps: [] }; }
+    function titleFor(step) { return typeof step.label === 'string' && step.label.trim() ? step.label.trim() : (meta[step.type]?.[0] || step.type || 'Unknown command'); }
+    function groupFor(type) { return meta[type]?.[1] || 'action'; }
+    function branchLabel(step, key) { return branchNames[step.type]?.[key] || key; }
+    function valueText(value) {
+      const text = typeof value === 'string' ? value : JSON.stringify(value);
+      return text && text.length > 56 ? `${text.slice(0, 53)}…` : (text || '');
+    }
+    function summaryFor(step) {
+      switch (step.type) {
+      case 'assign': return `${valueText(step.target)} ← ${valueText(step.value)}`;
+      case 'if': case 'while': return valueText(step.condition);
+      case 'run_for': return `${valueText(step.duration_ms)} ms`;
+      case 'run_until': return `until ${valueText(step.until)} · timeout ${valueText(step.timeout_ms)} ms`;
+      case 'script': return valueText(step.script_name);
+      case 'ocr_text': return `${valueText(step.roi)} → ${valueText(step.output)}`;
+      case 'template_match': return `${valueText(step.template)} · ${valueText(step.threshold)}`;
+      case 'skill_check': return `${valueText(step.skill)} · ${valueText(step.threshold)}`;
+      case 'circle_percentage': return `${valueText(step.roi)} → ${valueText(step.output)}`;
+      case 'tap': return `${valueText(step.point)} · ${valueText(step.duration_ms)} ms`;
+      case 'drag': return `${valueText(step.from)} → ${valueText(step.to)}`;
+      case 'wait': return `${valueText(step.wait_ms)} ms`;
+      default: return '';
+      }
+    }
+
+    let workflow = newDocument();
+    let selectedStep = null;
+    let inspectorMode = null;
+    let activeTarget = null;
+    let draggedType = null;
+    let dirty = false;
+
+    const workspace = document.querySelector('.workspace');
+    const palette = document.getElementById('palette');
+    const diagram = document.getElementById('diagram');
+    const diagramScroll = document.getElementById('diagramScroll');
+    const targetLabel = document.getElementById('targetLabel');
+    const workflowLabel = document.getElementById('workflowLabel');
+    const inspectorEmpty = document.getElementById('inspectorEmpty');
+    const inspectorContent = document.getElementById('inspectorContent');
+    const variablesContent = document.getElementById('variablesContent');
+    const inspectorName = document.getElementById('inspectorName');
+    const inspectorType = document.getElementById('inspectorType');
+    const inspectorForm = document.getElementById('inspectorForm');
+    const varsEditor = document.getElementById('varsEditor');
+    const jsonPanel = document.getElementById('jsonPanel');
+    const jsonEditor = document.getElementById('jsonEditor');
+    const status = document.getElementById('status');
+
+    function nativeMessage(action, extra = {}) {
+      if (window.webkit?.messageHandlers?.orchestration) {
+        window.webkit.messageHandlers.orchestration.postMessage({ action, ...extra });
+      } else {
+        showStatus('File operations are available inside the Adb Quick app.', true);
+      }
+    }
+
+    function showStatus(text, isError = false) {
+      status.textContent = text;
+      status.classList.toggle('error', Boolean(isError));
+    }
+
+    function resetView() {
+      selectedStep = null;
+      inspectorMode = null;
+      activeTarget = { list: workflow.steps, path: 'Workflow' };
+    }
+
+    function renderPalette() {
+      palette.replaceChildren();
+      for (const [label, types] of paletteGroups) {
+        const heading = document.createElement('div');
+        heading.className = 'palette-group';
+        heading.textContent = label;
+        palette.appendChild(heading);
+        const group = document.createElement('div');
+        group.className = 'palette';
+        for (const type of types) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'palette-item';
+          button.dataset.group = groupFor(type);
+          button.draggable = true;
+          button.title = `Click or drag to add ${type}`;
+          button.innerHTML = `<span class="palette-icon">${meta[type][2]}</span><span class="palette-name">${meta[type][0]}</span><span class="palette-type">${type}</span>`;
+          button.addEventListener('click', () => addStep(type));
+          button.addEventListener('dragstart', event => {
+            draggedType = type;
+            button.classList.add('dragging');
+            event.dataTransfer.effectAllowed = 'copy';
+            event.dataTransfer.setData('application/x-workflow-type', type);
+            event.dataTransfer.setData('text/plain', type);
+          });
+          button.addEventListener('dragend', () => {
+            draggedType = null;
+            button.classList.remove('dragging');
+            clearPaletteDrop();
+          });
+          group.appendChild(button);
+        }
+        palette.appendChild(group);
+      }
+    }
+
+    function renderAll(keepScroll = true) {
+      const left = keepScroll ? diagramScroll.scrollLeft : 0;
+      const top = keepScroll ? diagramScroll.scrollTop : 0;
+      workflowLabel.textContent = typeof workflow.label === 'string' && workflow.label.trim() ? workflow.label.trim() : 'Untitled workflow';
+      targetLabel.textContent = activeTarget?.path || 'Workflow';
+      varsEditor.value = JSON.stringify(workflow.vars, null, 2);
+      jsonEditor.value = JSON.stringify(workflow, null, 2);
+      renderDiagram();
+      renderInspector();
+      diagramScroll.scrollLeft = left;
+      diagramScroll.scrollTop = top;
+    }
+
+    function connector(arrow = true) {
+      const line = document.createElement('div');
+      line.className = `connector${arrow ? ' arrow' : ''}`;
+      return line;
+    }
+
+    function renderDiagram() {
+      const root = document.createElement('div');
+      root.className = 'flow-root';
+      const start = document.createElement('div');
+      start.className = 'event-dot';
+      start.title = 'Start';
+      root.append(start, connector(), renderSequence(workflow.steps, 'Workflow'), connector());
+      const end = document.createElement('div');
+      end.className = 'event-dot end';
+      end.title = 'End';
+      root.appendChild(end);
+      diagram.replaceChildren(root);
+    }
+
+    function renderSequence(list, path) {
+      const sequence = document.createElement('div');
+      sequence.className = 'flow-sequence';
+      if (!list.length) {
+        const empty = document.createElement('button');
+        empty.type = 'button';
+        empty.className = 'empty-lane';
+        empty.textContent = 'Empty path · add a command';
+        empty.addEventListener('click', () => setTarget(list, path));
+        acceptPaletteDrop(empty, list, path);
+        sequence.appendChild(empty);
+        return sequence;
+      }
+      list.forEach((step, index) => {
+        if (index) sequence.appendChild(connector());
+        sequence.appendChild(renderStep(step, list, index, path));
+      });
+      sequence.appendChild(connector());
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'add-here';
+      add.classList.toggle('active', activeTarget?.list === list);
+      add.textContent = activeTarget?.list === list ? 'Adding here' : '+ Add here';
+      add.addEventListener('click', () => setTarget(list, path));
+      acceptPaletteDrop(add, list, path);
+      sequence.appendChild(add);
+      return sequence;
+    }
+
+    function renderStep(step, list, index, path) {
+      const shell = document.createElement('div');
+      shell.className = 'flow-step';
+      const row = document.createElement('div');
+      row.className = 'node-row';
+      const node = document.createElement('button');
+      node.type = 'button';
+      node.className = `flow-node ${groupFor(step.type)}`;
+      if (step.type === 'if') node.classList.add('decision');
+      node.classList.toggle('selected', selectedStep === step);
+      node.setAttribute('aria-label', `${titleFor(step)}, ${step.type || 'unknown type'}`);
+      const summary = summaryFor(step);
+      node.innerHTML = `<span class="node-top"><span class="node-type">${escapeHTML(step.type || 'unknown')}</span><span class="node-index">${index + 1}</span></span><span class="node-title">${escapeHTML(titleFor(step))}</span>${summary ? `<span class="node-summary">${escapeHTML(summary)}</span>` : ''}`;
+      node.addEventListener('click', () => {
+        selectedStep = step;
+        inspectorMode = 'step';
+        renderAll();
+      });
+      acceptPaletteDrop(node, list, path, index);
+
+      const actions = document.createElement('div');
+      actions.className = 'node-actions';
+      actions.append(actionButton('↑', 'Move up', () => moveStep(list, index, index - 1), index === 0));
+      actions.append(actionButton('↓', 'Move down', () => moveStep(list, index, index + 1), index === list.length - 1));
+      const remove = actionButton('×', 'Delete step', () => deleteStep(step, list, index, path));
+      remove.classList.add('delete');
+      actions.appendChild(remove);
+      row.append(node, actions);
+      shell.appendChild(row);
+
+      const keys = nestedKeys[step.type] || [];
+      if (step.type === 'run_until') {
+        renderRunUntil(step, shell, path);
+      } else if (keys.length) {
+        const board = document.createElement('div');
+        board.className = 'branch-board';
+        board.dataset.branches = String(keys.length);
+        for (const key of keys) {
+          if (!Array.isArray(step[key])) step[key] = [];
+          const branchPath = `${path} / ${titleFor(step)} / ${branchLabel(step, key)}`;
+          const branch = document.createElement('section');
+          branch.className = 'branch';
+          branch.classList.toggle('active', activeTarget?.list === step[key]);
+          const label = document.createElement('div');
+          label.className = 'branch-label';
+          label.textContent = branchLabel(step, key);
+          branch.append(label, renderSequence(step[key], branchPath));
+          board.appendChild(branch);
+        }
+        shell.append(connector(false), board, connector(false));
+        const merge = document.createElement('div');
+        merge.className = 'merge';
+        merge.title = 'Branches merge';
+        shell.appendChild(merge);
+      }
+      return shell;
+    }
+
+    function renderRunUntil(step, shell, path) {
+      const board = document.createElement('div');
+      board.className = 'run-until-board';
+      const heading = document.createElement('div');
+      heading.className = 'run-until-heading';
+      heading.textContent = `These paths run together · monitor repeats every ${valueText(step.check_every_ms)} ms`;
+      const lanes = document.createElement('div');
+      lanes.className = 'run-until-lanes';
+      const names = { steps: 'Body · runs continuously', check: 'Monitor · checks periodically' };
+      for (const key of ['steps', 'check']) {
+        if (!Array.isArray(step[key])) step[key] = [];
+        const branchPath = `${path} / ${titleFor(step)} / ${names[key]}`;
+        const lane = document.createElement('section');
+        lane.className = 'run-until-lane';
+        const label = document.createElement('div');
+        label.className = 'branch-label';
+        label.textContent = names[key];
+        lane.append(label, renderSequence(step[key], branchPath));
+        lanes.appendChild(lane);
+      }
+      board.append(heading, lanes);
+      const exit = document.createElement('div');
+      exit.className = 'run-until-exit';
+      exit.textContent = `Stop when ${valueText(step.until)} is true, the body ends, or after ${valueText(step.timeout_ms)} ms`;
+      shell.append(connector(false), board, connector(false), exit);
+    }
+
+    function escapeHTML(value) {
+      return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+    }
+
+    function actionButton(text, label, action, disabled = false) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = text;
+      button.title = label;
+      button.setAttribute('aria-label', label);
+      button.disabled = disabled;
+      button.addEventListener('click', action);
+      return button;
+    }
+
+    function draggedCommand(event) {
+      const type = draggedType || event.dataTransfer?.getData('application/x-workflow-type') || event.dataTransfer?.getData('text/plain');
+      return templates[type] ? type : null;
+    }
+
+    function acceptPaletteDrop(element, list, path, index = list.length) {
+      element.addEventListener('dragover', event => {
+        if (!draggedCommand(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'copy';
+        element.classList.add('drop-ready');
+      });
+      element.addEventListener('dragleave', event => {
+        if (!element.contains(event.relatedTarget)) element.classList.remove('drop-ready');
+      });
+      element.addEventListener('drop', event => dropPalette(event, list, path, index));
+    }
+
+    function dropPalette(event, list, path, index = list.length) {
+      const type = draggedCommand(event);
+      if (!type) return;
+      event.preventDefault();
+      event.stopPropagation();
+      draggedType = null;
+      clearPaletteDrop();
+      insertStep(type, list, path, index);
+    }
+
+    function clearPaletteDrop() {
+      document.querySelectorAll('.drop-ready').forEach(element => element.classList.remove('drop-ready'));
+      diagramScroll.classList.remove('drag-active');
+    }
+
+    function setTarget(list, path) {
+      activeTarget = { list, path };
+      renderAll();
+      showStatus(`Insert target: ${path}`);
+    }
+
+    function addStep(type) {
+      insertStep(type, activeTarget.list, activeTarget.path);
+    }
+
+    function insertStep(type, list, path, index = list.length) {
+      if (!templates[type]) return;
+      const step = copy(templates[type]);
+      list.splice(index, 0, step);
+      activeTarget = { list, path };
+      selectedStep = step;
+      inspectorMode = 'step';
+      dirty = true;
+      renderAll();
+      showStatus(`Added ${type} to ${path}`);
+    }
+
+    function moveStep(list, from, to) {
+      if (to < 0 || to >= list.length) return;
+      const [step] = list.splice(from, 1);
+      list.splice(to, 0, step);
+      dirty = true;
+      renderAll();
+    }
+
+    function descendantCount(step) {
+      return (nestedKeys[step.type] || []).reduce((count, key) => {
+        const children = Array.isArray(step[key]) ? step[key] : [];
+        return count + children.length + children.reduce((total, child) => total + descendantCount(child), 0);
+      }, 0);
+    }
+
+    function deleteStep(step, list, index, path) {
+      const descendants = descendantCount(step);
+      if (descendants && !window.confirm(`Delete this step and its ${descendants} nested step${descendants === 1 ? '' : 's'}?`)) return;
+      list.splice(index, 1);
+      if (selectedStep === step) { selectedStep = null; inspectorMode = null; }
+      activeTarget = { list, path };
+      dirty = true;
+      renderAll();
+      showStatus(`Deleted ${step.type || 'step'}`);
+    }
+
+    function stepFields(step) {
+      const fields = {};
+      const children = new Set(nestedKeys[step.type] || []);
+      for (const [key, value] of Object.entries(step)) if (key !== 'type' && !children.has(key)) fields[key] = value;
+      return fields;
+    }
+
+    function renderInspector() {
+      inspectorForm.replaceChildren();
+      const showStep = inspectorMode === 'step' && Boolean(selectedStep);
+      const showVariables = inspectorMode === 'variables';
+      inspectorEmpty.hidden = showStep || showVariables;
+      inspectorContent.hidden = !showStep;
+      variablesContent.hidden = !showVariables;
+      if (!showStep) return;
+
+      inspectorName.textContent = titleFor(selectedStep);
+      inspectorType.textContent = selectedStep.type || 'unknown';
+      const fields = stepFields(selectedStep);
+      const entries = Object.entries(fields);
+      if (!Object.prototype.hasOwnProperty.call(fields, 'label')) entries.unshift(['label', '']);
+      if (selectedStep.type === 'script' && !Object.prototype.hasOwnProperty.call(fields, 'props')) entries.push(['props', undefined]);
+      entries.forEach(([key, value], index) => inspectorForm.appendChild(parameterField(key, value, index)));
+    }
+
+    function parameterField(key, value, index) {
+      const field = document.createElement('div');
+      field.className = 'field';
+      const label = document.createElement('label');
+      label.textContent = key;
+      label.htmlFor = `parameter-${index}`;
+      const isProps = selectedStep.type === 'script' && key === 'props';
+      const isUntil = selectedStep.type === 'run_until' && key === 'until';
+      const control = isProps ? document.createElement('textarea') : (isUntil ? document.createElement('input') : parameterControl(value));
+      control.id = `parameter-${index}`;
+      if (isProps) {
+        control.spellcheck = false;
+        control.value = value === undefined ? '' : JSON.stringify(value, null, 2);
+        control.placeholder = 'Optional JSON object or "${props}"';
+      } else if (isUntil) {
+        control.type = 'text';
+        control.value = typeof value === 'string' ? value : JSON.stringify(value);
+        control.placeholder = '${done} or true';
+      }
+      control.addEventListener('change', () => updateParameter(key, value, control));
+      field.append(label, control);
+      return field;
+    }
+
+    function parameterControl(value) {
+      if (typeof value === 'boolean') {
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = value;
+        return input;
+      }
+      if (Array.isArray(value) || value === null || (value && typeof value === 'object')) {
+        const textarea = document.createElement('textarea');
+        textarea.spellcheck = false;
+        textarea.value = JSON.stringify(value, null, 2);
+        return textarea;
+      }
+      const input = document.createElement('input');
+      input.type = typeof value === 'number' ? 'number' : 'text';
+      if (typeof value === 'number') input.step = 'any';
+      input.value = String(value ?? '');
+      return input;
+    }
+
+    function readValue(control, original) {
+      if (typeof original === 'boolean') return control.checked;
+      if (typeof original === 'number') {
+        const value = Number(control.value);
+        if (!control.value.trim() || !Number.isFinite(value)) throw new Error('Enter a valid number');
+        return value;
+      }
+      if (typeof original === 'string') return control.value;
+      const value = JSON.parse(control.value);
+      if (Array.isArray(original) && !Array.isArray(value)) throw new Error('Enter a JSON array');
+      if (original && typeof original === 'object' && (!value || Array.isArray(value) || typeof value !== 'object')) throw new Error('Enter a JSON object');
+      return value;
+    }
+
+    function readProps(source) {
+      if (!source.trim()) return undefined;
+      const value = JSON.parse(source);
+      if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+      if (typeof value === 'string' && value.startsWith('${') && value.endsWith('}')) return value;
+      throw new Error('Enter a JSON object or a quoted object expression');
+    }
+
+    function readUntil(source) {
+      const value = source.trim();
+      if (value.startsWith('${') && value.endsWith('}')) return value;
+      if (value === 'true' || value === 'false') return JSON.parse(value);
+      throw new Error('Enter a boolean expression such as ${done}, or true/false');
+    }
+
+    function updateParameter(key, original, control) {
+      try {
+        const isProps = selectedStep.type === 'script' && key === 'props';
+        const isUntil = selectedStep.type === 'run_until' && key === 'until';
+        const value = isProps ? readProps(control.value) : (isUntil ? readUntil(control.value) : readValue(control, original));
+        if (isProps && value === undefined) delete selectedStep.props;
+        else if (key === 'label' && typeof value === 'string' && !value.trim()) delete selectedStep.label;
+        else selectedStep[key] = value;
+        dirty = true;
+        renderAll();
+        showStatus(`Updated ${selectedStep.type}`);
+      } catch (error) {
+        showStatus(`Invalid ${key}: ${error.message}`, true);
+      }
+    }
+
+    function applyVariables() {
+      try {
+        const value = JSON.parse(varsEditor.value);
+        if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error('vars must be a JSON object');
+        workflow.vars = value;
+        dirty = true;
+        renderAll();
+        showStatus('Applied variables');
+      } catch (error) {
+        showStatus(`Invalid variables: ${error.message}`, true);
+      }
+    }
+
+    function applyJSON(validate = true) {
+      try {
+        const value = JSON.parse(jsonEditor.value);
+        if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error('The root must be a JSON object');
+        if (value.version !== 3) throw new Error('version must be 3');
+        if (!value.vars || Array.isArray(value.vars) || typeof value.vars !== 'object') throw new Error('vars must be a JSON object');
+        if (!Array.isArray(value.steps)) throw new Error('steps must be an array');
+        workflow = value;
+        resetView();
+        renderAll(false);
+        showStatus('Applied JSON to the diagram');
+        if (validate) nativeMessage('validate', { json: JSON.stringify(workflow, null, 2) });
+        return true;
+      } catch (error) {
+        showStatus(`Invalid JSON: ${error.message}`, true);
+        return false;
+      }
+    }
+
+    function loadDocument(source) {
+      jsonEditor.value = source;
+      if (applyJSON(false)) dirty = false;
+    }
+    function markSaved() { dirty = false; }
+    function canDiscardChanges() { return !dirty || window.confirm('The current workflow has unsaved changes.'); }
+
+    document.getElementById('variablesButton').addEventListener('click', () => {
+      selectedStep = null;
+      inspectorMode = 'variables';
+      renderAll();
+    });
+    diagramScroll.addEventListener('dragover', event => {
+      if (!draggedCommand(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+      diagramScroll.classList.add('drag-active');
+    });
+    diagramScroll.addEventListener('dragleave', event => {
+      if (!diagramScroll.contains(event.relatedTarget)) diagramScroll.classList.remove('drag-active');
+    });
+    diagramScroll.addEventListener('drop', event => dropPalette(event, workflow.steps, 'Workflow'));
+    document.getElementById('applyVarsButton').addEventListener('click', applyVariables);
+    document.getElementById('newButton').addEventListener('click', () => {
+      if (!canDiscardChanges()) return;
+      workflow = newDocument();
+      resetView();
+      dirty = false;
+      renderAll(false);
+      nativeMessage('new');
+      showStatus('Created a new workflow');
+    });
+    document.getElementById('openButton').addEventListener('click', () => { if (canDiscardChanges()) nativeMessage('open'); });
+    document.getElementById('saveButton').addEventListener('click', () => nativeMessage('save', { json: jsonEditor.value }));
+    document.getElementById('saveAsButton').addEventListener('click', () => nativeMessage('saveAs', { json: jsonEditor.value }));
+    document.getElementById('toggleJsonButton').addEventListener('click', event => {
+      const show = jsonPanel.hidden;
+      jsonPanel.hidden = !show;
+      workspace.classList.toggle('json-visible', show);
+      event.currentTarget.setAttribute('aria-expanded', String(show));
+    });
+    document.getElementById('applyJsonButton').addEventListener('click', () => applyJSON(true));
+    document.getElementById('formatButton').addEventListener('click', () => {
+      try {
+        jsonEditor.value = JSON.stringify(JSON.parse(jsonEditor.value), null, 2);
+        dirty = true;
+        showStatus('Formatted JSON');
+      } catch (error) { showStatus(`Invalid JSON: ${error.message}`, true); }
+    });
+    document.getElementById('validateButton').addEventListener('click', () => nativeMessage('validate', { json: jsonEditor.value }));
+    varsEditor.addEventListener('input', () => { dirty = true; });
+    jsonEditor.addEventListener('input', () => { dirty = true; });
+    inspectorForm.addEventListener('submit', event => event.preventDefault());
+
+    if (Object.keys(templates).some(type => !meta[type]) || Object.keys(meta).some(type => !templates[type])) throw new Error('Palette metadata and command templates differ');
+    const branchCheck = copy(templates.if);
+    branchCheck.then.push(copy(templates.tap));
+    if (descendantCount(branchCheck) !== 1 || summaryFor(templates.assign) !== '${counter} ← ${counter + 1}') throw new Error('Diagram model self-check failed');
+
+    renderPalette();
+    resetView();
+    renderAll(false);
+  </script>
+</body>
+</html>

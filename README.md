@@ -40,7 +40,7 @@ open AdbQuick.app
 
 `build.sh` creates `AdbQuick` and keeps compiler caches in `.clangcache/`, keyed by the repository's absolute path. `build_app.sh` rebuilds the executable, generates the icon, replaces `AdbQuick.app`, bundles the editor, and attempts ad-hoc signing.
 
-When running the standalone executable, keep `assets/orchestration.html` beside it in the `assets/` directory so the editor can load. Workflow files remain in the repository; packaging does not copy `scripts/` into the app.
+When running the standalone executable, keep `assets/orchestration_1.html` beside it in the `assets/` directory so the editor can load. Workflow files remain in the repository; packaging does not copy `scripts/` into the app.
 
 To connect directly to a device instead of choosing it in the device list:
 
@@ -139,6 +139,7 @@ swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-circle-che
 
 # Requires Node.js
 node Tests/orchestration_props.cjs
+node Tests/orchestration_1.cjs
 ```
 
 Other checks have additional fixture requirements. In particular, `Tests/flow.swift` and `Tests/WorkflowParserTests.swift` still reference the old `scripts/4c_xin_loop_team_kxq/` layout; the parser check also reads a sibling `wuwa_mass/project.md`. They need fixture updates before serving as clean-checkout checks. `Tests/check.swift` exercises OCR and optionally the external classifier/video pipeline.

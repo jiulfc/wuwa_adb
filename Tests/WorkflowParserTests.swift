@@ -16,6 +16,7 @@ struct WorkflowParserCheck {
             {"type":"assign","label":"compute counter","target":"${n}","value":"${1 + 2 * 3}"},
             {"type":"if","condition":"${n == 7}","then":[{"type":"script","script_name":"child.json"}]},
             {"type":"ocr_text","roi":[0,0,20,20],"output":"${text}"},
+            {"type":"debug","info":"${text}"},
             {"type":"template_match","roi":[0,0,20,20],"template":"button.png","threshold":0.8,"output":"${match}"},
             {"type":"if","condition":"${match.found}","then":[{"type":"tap","point":"${match.point}","duration_ms":1}]},
             {"type":"drag","from":[1,2],"to":[3,4],"duration_ms":1},
@@ -46,6 +47,7 @@ struct WorkflowParserCheck {
         precondition(visionKinds == [.ocrText, .templateMatch])
         precondition(touches == [.down, .up, .down, .move, .up])
         precondition(logs.contains("[Workflow] Step: type=ocr_text, output=text, text=\("CONFIRM".debugDescription)"))
+        precondition(logs.contains("[Workflow] Debug: CONFIRM"))
         precondition(logs.contains("[Workflow] Condition: type=if, matched=true"))
 
         let circle = try parse(#"[{"type":"circle_percentage","roi":[1270,1270,72,72],"profile":"default","output":"${n}"}]"#)
@@ -192,6 +194,7 @@ struct WorkflowParserCheck {
         rejects(#"[{"type":"wait","wait_ms":true}]"#, containing: "Expected number")
         rejects(#"[{"type":"wait","wait_ms":-1}]"#, containing: "permitted range")
         rejects(#"[{"type":"wait","wait_ms":0.5}]"#, containing: "not an integer")
+        rejects(#"[{"type":"debug","info":1}]"#, containing: "Expected string")
         rejects(#"[{"type":"tap","point":[1],"duration_ms":10}]"#, containing: "2 coordinates")
         rejects(#"[{"type":"drag","from":[0,0],"to":[1],"duration_ms":10}]"#, containing: "2 coordinates")
         rejects(#"[{"type":"drag","from":[0,0],"to":[1,1],"duration_ms":0}]"#, containing: "permitted range")

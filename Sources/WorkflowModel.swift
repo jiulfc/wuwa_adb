@@ -77,6 +77,7 @@ public struct VisionCommand: Equatable, Sendable {
 
 public indirect enum Step: Equatable, Sendable {
     case assign(target: String, value: Input)
+    case debug(info: Input)
     case whileLoop(condition: Input, steps: [Step])
     case conditional(condition: Input, then: [Step], otherwise: [Step])
     case runFor(duration: Input, steps: [Step])

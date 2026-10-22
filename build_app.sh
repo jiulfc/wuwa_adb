@@ -13,7 +13,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp AdbQuick "$APP/Contents/MacOS/AdbQuick"
 cp Info.plist "$APP/Contents/Info.plist"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
-cp assets/orchestration.html "$APP/Contents/Resources/orchestration.html"
+cp assets/orchestration_1.html "$APP/Contents/Resources/orchestration_1.html"
 
 codesign --force --sign - "$APP" 2>/dev/null || true
 

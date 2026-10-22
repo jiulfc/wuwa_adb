@@ -83,6 +83,9 @@ private struct Validator {
         case "assign":
             try schema(["target", "value"])
             return .assign(target: try destination(obj["target"]!, at: path + ".target"), value: try input("value"))
+        case "debug":
+            try schema(["info"])
+            return .debug(info: try string(input("info"), at: path + ".info"))
         case "while":
             try schema(["condition", "steps"])
             return .whileLoop(condition: try condition(input("condition"), at: path + ".condition"),

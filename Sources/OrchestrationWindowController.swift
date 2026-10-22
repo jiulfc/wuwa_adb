@@ -67,9 +67,9 @@ final class OrchestrationWindowController: NSObject, WKScriptMessageHandler, WKU
     }
 
     private func loadEditor() {
-        let bundled = Bundle.main.url(forResource: "orchestration", withExtension: "html")
+        let bundled = Bundle.main.url(forResource: "orchestration_1", withExtension: "html")
         let executableDirectory = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
-        let source = executableDirectory.appendingPathComponent("assets/orchestration.html")
+        let source = executableDirectory.appendingPathComponent("assets/orchestration_1.html")
         guard let url = bundled ?? (FileManager.default.fileExists(atPath: source.path) ? source : nil) else {
             report("Workflow orchestrator web resource was not found.", alert: true)
             return

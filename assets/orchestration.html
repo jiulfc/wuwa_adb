@@ -126,6 +126,7 @@
     }
     .step.selected { box-shadow: 0 0 0 2px var(--accent); }
     .step[data-type="assign"] { --step-color: #38bdf8; }
+    .step[data-type="debug"] { --step-color: #a3a3a3; }
     .step[data-type="while"] { --step-color: #8b5cf6; }
     .step[data-type="if"] { --step-color: #d946ef; }
     .step[data-type="run_for"], .step[data-type="run_until"] { --step-color: #f59e0b; }
@@ -253,6 +254,7 @@
 
     const templates = {
       assign: { type: 'assign', target: '${counter}', value: '${counter + 1}' },
+      debug: { type: 'debug', info: 'Debug message' },
       while: { type: 'while', condition: '${counter < 1}', steps: [] },
       if: { type: 'if', condition: true, then: [], else: [] },
       run_for: { type: 'run_for', duration_ms: 16000, steps: [] },
@@ -269,7 +271,7 @@
       return: { type: 'return' }
     };
     const titles = {
-      assign: 'Assignment', while: 'Loop', if: 'Condition', run_for: 'Run For', run_until: 'Run Until', script: 'Subflow',
+      assign: 'Assignment', debug: 'Debug', while: 'Loop', if: 'Condition', run_for: 'Run For', run_until: 'Run Until', script: 'Subflow',
       ocr_text: 'OCR Text', template_match: 'Template Match', skill_check: 'Skill Check',
       circle_percentage: 'Circle Percentage', tap: 'Tap', wait: 'Wait', break: 'Break',
       continue: 'Continue', return: 'Return'
@@ -284,7 +286,7 @@
     function cloneTemplate(type) { return copy(templates[type]); }
 
     // Fail early if the visual palette drifts away from the v3 parser command set.
-    const expectedKinds = ['assign', 'while', 'if', 'run_for', 'run_until', 'script', 'ocr_text', 'template_match',
+    const expectedKinds = ['assign', 'debug', 'while', 'if', 'run_for', 'run_until', 'script', 'ocr_text', 'template_match',
       'skill_check', 'circle_percentage', 'tap', 'wait', 'break', 'continue', 'return'];
     if (expectedKinds.some(kind => !templates[kind]) || Object.keys(templates).length !== expectedKinds.length) {
       throw new Error('v3 command palette is incomplete');
