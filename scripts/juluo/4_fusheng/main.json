@@ -1,5 +1,6 @@
 {
   "version": 3,
+  "label": "TODO issue: prepare.json need polish again!",
   "vars": {
     "counter": 0,
     "stop_text": ""
