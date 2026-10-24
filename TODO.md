@@ -1,5 +1,3 @@
 # TODO
 
-1. [TODO] weekly bug
-2. wuyin
-3. juluo return back: need to scale map first
+1. `juluo/4_fusheng/prepare.json` need update: polish combat
