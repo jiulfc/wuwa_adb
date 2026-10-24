@@ -1,0 +1,101 @@
+{
+  "version": 3,
+  "vars": {
+    "move_count": 0,
+    "pickup_text": "",
+    "pickup_point": [2096.5, 612],
+    "pickup_found": false,
+    "props": {
+      "pickup_prepare_script": ""
+    }
+  },
+  "steps": [
+    {
+      "type": "while",
+      "condition": "${move_count <= 2 && !pickup_found}",
+      "steps": [
+        {
+          "type": "assign",
+          "target": "${pickup_point}",
+          "value": [2096.5, 612]
+        },
+        {
+          "type": "ocr_text",
+          "roi": [2041, 589, 111, 46],
+          "output": "${pickup_text}"
+        },
+        {
+          "type": "if",
+          "condition": "${!(pickup_text contains '吸收')}",
+          "then": [
+            {
+              "type": "ocr_text",
+              "roi": [2041, 715, 111, 46],
+              "output": "${pickup_text}"
+            },
+            {
+              "type": "assign",
+              "target": "${pickup_point}",
+              "value": [2096.5, 738]
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${pickup_text contains '吸收'}",
+          "then": [
+            {
+              "type": "assign",
+              "target": "${pickup_found}",
+              "value": true
+            }
+          ],
+          "else": [
+            {
+              "type": "if",
+              "condition": "${move_count < 2}",
+              "then": [
+                {
+                  "type": "drag",
+                  "from": [501, 1080],
+                  "to": [501, 880],
+                  "duration_ms": 250
+                },
+                {
+                  "type": "wait",
+                  "wait_ms": 150
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "assign",
+          "target": "${move_count}",
+          "value": "${move_count + 1}"
+        }
+      ]
+    },
+    {
+      "type": "if",
+      "condition": "${pickup_found}",
+      "then": [
+        {
+          "type": "tap",
+          "point": "${pickup_point}",
+          "duration_ms": 100
+        }
+      ],
+      "else": [
+        {
+          "type": "script",
+          "script_name": "${props.pickup_prepare_script}"
+        },
+        {
+          "type": "script",
+          "script_name": "../common/pickup.json"
+        }
+      ]
+    }
+  ]
+}

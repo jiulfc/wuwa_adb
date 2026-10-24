@@ -1,0 +1,30 @@
+{
+  "version": 3,
+  "vars": {
+    "count": 0,
+    "props": {
+      "max_loop": 1
+    }
+  },
+  "steps": [
+    {
+      "type": "while",
+      "condition": "${count < props.max_loop}",
+      "steps": [
+        {
+          "type": "assign",
+          "target": "${count}",
+          "value": "${count + 1}"
+        },
+        {
+          "type": "script",
+          "script_name": "workflow.json"
+        },
+        {
+          "type": "wait",
+          "wait_ms": 3000
+        }
+      ]
+    }
+  ]
+}

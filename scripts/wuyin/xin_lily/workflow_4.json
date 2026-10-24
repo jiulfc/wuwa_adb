@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "vars": {
+  },
+  "steps": [
+    {
+      "type": "script",
+      "script_name": "loop.json",
+      "props": {
+        "max_loop": 4
+      }
+    }
+  ]
+}

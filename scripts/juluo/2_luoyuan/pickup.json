@@ -4,7 +4,10 @@
   "steps": [
     {
       "type": "script",
-      "script_name": "../../common/pickup.json"
+      "script_name": "../pickup.json",
+      "props": {
+        "pickup_prepare_script": "2_luoyuan/pickup_prepare.json"
+      }
     }
   ]
 }

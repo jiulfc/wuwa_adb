@@ -61,43 +61,72 @@ struct PickupCheck {
             precondition(moves == Array(expected.prefix(maxPhase * 2)), "Stop at the configured phase")
             precondition(reads == (maxPhase * 2 + 1) * 2, "Check both regions at the endpoint")
         }
+        let juluoCommon = URL(fileURLWithPath: "scripts/juluo/pickup.json").standardizedFileURL
+        let quickOriginal = try WorkflowParser().parse(Data(contentsOf: juluoCommon))
+        let quick = Workflow(version: quickOriginal.version, variables: quickOriginal.variables,
+                             steps: quickOriginal.steps.map(fast))
+        for scenario in 0..<5 {
+            var moves: [[Double]] = []
+            var taps: [[Double]] = []
+            var scripts: [String] = []
+            try WorkflowRunner(checkCancelled: {}, script: { name, _, _ in scripts.append(name) },
+                vision: { kind, roi, _, _ in
+                    precondition(kind == .ocrText)
+                    if scenario == 0 && moves.isEmpty && roi[1] == 589 { return .string("吸收") }
+                    if scenario == 1 && moves.isEmpty && roi[1] == 715 { return .string("吸收") }
+                    if scenario == 2 && moves.count == 1 && roi[1] == 589 { return .string("吸收") }
+                    if scenario == 3 && moves.count == 2 && roi[1] == 715 { return .string("吸收") }
+                    return .string("")
+                }, touch: { point, action in
+                    if action == .move { moves.append(point) }
+                    if action == .down && point[0] == 2096.5 { taps.append(point) }
+                }, log: { _ in }).run(quick.applying(props: [
+                    "pickup_prepare_script": .string("fixture/pickup_prepare.json")
+                ]))
+            precondition(moves == Array(repeating: [501, 880], count: [0, 0, 1, 2, 2][scenario]),
+                         "Quick pickup moves at most one phase")
+            let expectedTaps: [[Double]] = [[612], [738], [612], [738], []]
+            precondition(taps.map { $0[1] } == expectedTaps[scenario])
+            let expectedScripts = scenario == 4 ? ["fixture/pickup_prepare.json", "../common/pickup.json"] : []
+            precondition(scripts == expectedScripts, "Prepare must immediately precede the original pickup")
+        }
         let files = FileManager.default.enumerator(at: URL(fileURLWithPath: "scripts"), includingPropertiesForKeys: nil)!
         var wrappers = 0
-        for case let path as URL in files where path.lastPathComponent == "pickup.json" && path.standardizedFileURL != common {
+        for case let path as URL in files where path.lastPathComponent == "pickup.json" &&
+            path.standardizedFileURL != common && path.standardizedFileURL != juluoCommon {
             let wrapper = try WorkflowParser().parse(Data(contentsOf: path))
-            precondition(wrapper.steps == [.script(name: .literal(.string("../../common/pickup.json")))])
-            precondition(path.deletingLastPathComponent().appendingPathComponent("../../common/pickup.json").standardizedFileURL == common)
+            guard wrapper.steps.count == 1, case .script = wrapper.steps[0] else { continue }
+            if path.path.contains("/scripts/juluo/") {
+                let location = path.deletingLastPathComponent().lastPathComponent
+                precondition(wrapper.steps == [.script(name: .literal(.string("../pickup.json")), props: .object([
+                    "pickup_prepare_script": .literal(.string("\(location)/pickup_prepare.json"))
+                ]))])
+                precondition(path.deletingLastPathComponent().appendingPathComponent("../pickup.json").standardizedFileURL == juluoCommon)
+                precondition(FileManager.default.fileExists(atPath: juluoCommon.deletingLastPathComponent()
+                    .appendingPathComponent("\(location)/pickup_prepare.json").path))
+            } else {
+                precondition(wrapper.steps == [.script(name: .literal(.string("../../common/pickup.json")))])
+                precondition(path.deletingLastPathComponent().appendingPathComponent("../../common/pickup.json").standardizedFileURL == common)
+            }
             wrappers += 1
         }
         precondition(wrappers == 12)
+        precondition(juluoCommon.deletingLastPathComponent().appendingPathComponent("../common/pickup.json")
+            .standardizedFileURL == common)
         for name in ["1_mengshu", "2_luoyuan", "3_wangmang", "4_fusheng", "5_xianzu"] {
             let main = try WorkflowParser().parse(Data(contentsOf: URL(fileURLWithPath: "scripts/juluo/\(name)/main.json")))
             let fastMain = Workflow(version: main.version, variables: main.variables, steps: main.steps.map(fast))
-            for scenario in 0..<3 {
-                var scripts: [String] = []
-                var taps: [[Double]] = []
-                var regions: [[Double]] = []
-                try WorkflowRunner(checkCancelled: {}, script: { name, _, _ in scripts.append(name) },
-                    vision: { kind, roi, _, _ in
-                        precondition(kind == .ocrText)
-                        if roi == [222, 397, 319, 49] { return .string("已清") }
-                        regions.append(roi)
-                        if scenario == 1 && roi[1] == 589 { return .string("点击吸收") }
-                        if scenario == 2 && roi[1] == 715 { return .string("吸收") }
-                        return .string("")
-                    }, touch: { point, action in
-                        if action == .down { taps.append(point) }
-                    }, log: { _ in }).run(fastMain)
-                var expectedScripts = name == "1_mengshu" ? ["prepare.json"] : ["../../common/reset_team_kxq.json", "prepare.json"]
-                if scenario == 0 { expectedScripts += ["pickup_prepare.json", "pickup.json"] }
-                expectedScripts.append("finish.json")
-                precondition(scripts == expectedScripts, "Only unmatched pickup should prepare and search; always finish")
-                precondition(regions == (scenario == 1 ? [[2041, 589, 111, 46]] :
-                    [[2041, 589, 111, 46], [2041, 715, 111, 46]]))
-                precondition(taps == (scenario == 0 ? [] : [[2096.5, scenario == 1 ? 612 : 738]]))
-            }
+            var scripts: [String] = []
+            try WorkflowRunner(checkCancelled: {}, script: { script, _, _ in scripts.append(script) },
+                vision: { kind, roi, _, _ in
+                    precondition(kind == .ocrText && roi == [222, 397, 319, 49])
+                    return .string("已清")
+                }, touch: { _, _ in fatalError("Pickup is extracted from main") }, log: { _ in }).run(fastMain)
+            var expectedScripts = name == "1_mengshu" ? ["prepare.json"] : ["../../common/reset_team_kxq.json", "prepare.json"]
+            expectedScripts += ["pickup.json", "finish.json"]
+            precondition(scripts == expectedScripts, "Every Juluo main delegates pickup and always finishes")
         }
         print("Pickup spiral, return after tap in either region, endpoint, and all 12 wrappers passed")
-        print("All five Juluo scripts: direct pickup in either region, fallback preparation, and finish passed")
+        print("All five Juluo scripts: instant, one-phase, prepare-then-original fallback, and finish passed")
     }
 }

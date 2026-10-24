@@ -2,9 +2,7 @@
   "version": 3,
   "vars": {
     "counter": 0,
-    "stop_text": "",
-    "pickup_text": "",
-    "pickup_point": [2096.5, 612]
+    "stop_text": ""
   },
   "steps": [
     {
@@ -45,51 +43,8 @@
           ]
         },
         {
-          "type": "assign",
-          "target": "${pickup_point}",
-          "value": [2096.5, 612]
-        },
-        {
-          "type": "ocr_text",
-          "roi": [2041, 589, 111, 46],
-          "output": "${pickup_text}"
-        },
-        {
-          "type": "if",
-          "condition": "${!(pickup_text contains '吸收')}",
-          "then": [
-            {
-              "type": "ocr_text",
-              "roi": [2041, 715, 111, 46],
-              "output": "${pickup_text}"
-            },
-            {
-              "type": "assign",
-              "target": "${pickup_point}",
-              "value": [2096.5, 738]
-            }
-          ]
-        },
-        {
-          "type": "if",
-          "condition": "${pickup_text contains '吸收'}",
-          "then": [
-            {
-              "type": "tap",
-              "point": "${pickup_point}",
-              "duration_ms": 100
-            }
-          ],
-          "else": [
-            {
-              "type": "script",
-              "script_name": "pickup_prepare.json"
-            },
-            {
-              "type": "script",
-              "script_name": "pickup.json"
-            }
-          ]
+          "type": "script",
+          "script_name": "pickup.json"
         },
         {
           "type": "wait",
