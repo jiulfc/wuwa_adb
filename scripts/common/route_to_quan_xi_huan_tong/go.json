@@ -1,0 +1,81 @@
+{
+  "version": 3,
+  "vars": {
+    "point_laguna": [2036, 610],
+    "point_di_sa_lai": [2694, 1105],
+    "point_quan_xi": [1451, 964],
+    "point_go": [2640, 1331],
+    "point_jump": [2569, 887],
+    "point_a": [2565, 1111]
+  },
+  "steps": [
+    {
+      "type": "script",
+      "script_name": "scroll.json"
+    },
+    {
+      "type": "wait",
+      "wait_ms": 1000
+    },
+    {
+      "label": "click la_gu_na",
+      "type": "tap",
+      "point": "${point_laguna}",
+      "duration_ms": 100
+    },
+    {
+      "type": "wait",
+      "wait_ms": 1000
+    },
+    {
+      "type": "tap",
+      "point": "${point_di_sa_lai}",
+      "duration_ms": 100
+    },
+    {
+      "type": "wait",
+      "wait_ms": 1500
+    },
+    {
+      "type": "tap",
+      "point": "${point_quan_xi}",
+      "duration_ms": 100
+    },
+    {
+      "type": "wait",
+      "wait_ms": 1000
+    },
+    {
+      "type": "tap",
+      "point": "${point_go}",
+      "duration_ms": 100
+    },
+    {
+      "type": "wait",
+      "wait_ms": 12000
+    },
+    {
+      "type": "tap",
+      "point": "${point_jump}",
+      "duration_ms": 100
+    },
+    {
+      "type": "wait",
+      "wait_ms": 2000
+    },
+    {
+      "type": "tap",
+      "point": "${point_a}",
+      "duration_ms": 100
+    },
+    {
+      "type": "wait",
+      "wait_ms": 500
+    },
+    {
+      "type": "tap",
+      "point": "${point_a}",
+      "duration_ms": 100
+    }
+  ]
+}

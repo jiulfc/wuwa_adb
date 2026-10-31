@@ -1,0 +1,92 @@
+{
+  "version": 3,
+  "vars": {
+    "text_li_na_xi_ta": "",
+    "text_la_gu_na": "",
+    "point_map": [357, 180],
+    "point_luo_yi_bing_yuan": [2050, 228],
+    "point_li_na_xi_ia": [2050, 366],
+    "point_map_list": [2694, 1326],
+    "roi_li_na_xi_ta": [1957, 342, 204, 50],
+    "roi_la_gu_na": [1957, 583, 204, 50]
+  },
+  "steps": [
+    {
+      "type": "tap",
+      "point": "${point_map}",
+      "duration_ms": 100
+    },
+    {
+      "type": "wait",
+      "wait_ms": 2000
+    },
+    {
+      "type": "tap",
+      "point": "${point_map_list}",
+      "duration_ms": 100
+    },
+    {
+      "type": "wait",
+      "wait_ms": 2000
+    },
+    {
+      "type": "ocr_text",
+      "roi": "${roi_li_na_xi_ta}",
+      "output": "${text_li_na_xi_ta}"
+    },
+    {
+      "type": "if",
+      "condition": "${text_li_na_xi_ta contains '塔'}",
+      "then": [
+        {
+          "type": "ocr_text",
+          "roi": "${roi_la_gu_na}",
+          "output": "${text_la_gu_na}"
+        },
+        {
+          "type": "if",
+          "condition": "${!(text_la_gu_na contains '古')}",
+          "then": [
+            {
+              "type": "tap",
+              "point": "${point_li_na_xi_ia}",
+              "duration_ms": 100
+            },
+            {
+              "type": "wait",
+              "wait_ms": 2000
+            }
+          ]
+        },
+        {
+          "type": "script",
+          "script_name": "go.json"
+        }
+      ],
+      "else": [
+        {
+          "type": "tap",
+          "point": "${point_luo_yi_bing_yuan}",
+          "duration_ms": 100
+        },
+        {
+          "type": "wait",
+          "wait_ms": 1000
+        },
+        {
+          "type": "tap",
+          "point": "${point_li_na_xi_ia}",
+          "duration_ms": 100
+        },
+        {
+          "type": "wait",
+          "wait_ms": 1000
+        },
+        {
+          "type": "script",
+          "script_name": "go.json"
+        }
+      ]
+    }
+  ]
+}
