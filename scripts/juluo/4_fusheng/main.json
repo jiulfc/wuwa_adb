@@ -47,13 +47,17 @@
           "type": "script",
           "script_name": "pickup.json"
         },
-        {
+       {
           "type": "wait",
           "wait_ms": 2000
         },
         {
           "type": "script",
-          "script_name": "finish.json"
+          "script_name": "../../common/route_to_quan_xi_huan_tong/main.json"
+        },
+        {
+          "type": "wait",
+          "wait_ms": 2000
         }
       ]
     }

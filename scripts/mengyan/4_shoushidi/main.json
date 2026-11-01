@@ -42,6 +42,10 @@
           "script_name": "pickup.json"
         },
         {
+          "type": "wait",
+          "wait_ms": 2000
+        },
+        {
           "type": "script",
           "script_name": "finish.json"
         }
