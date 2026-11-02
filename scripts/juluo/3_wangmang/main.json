@@ -20,6 +20,11 @@
           "script_name": "../../common/reset_team_kxq.json"
         },
         {
+          "type": "wait",
+          "wait_ms": 2000
+        },
+        {
+          "label":"TODO issue: select menu too quickly, need polish again! ",
           "type": "script",
           "script_name": "prepare.json"
         },

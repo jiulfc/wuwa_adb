@@ -20,6 +20,10 @@
           "script_name": "../../common/reset_team_kxq.json"
         },
         {
+          "type": "wait",
+          "wait_ms": 2000
+        },
+        {
           "type": "script",
           "script_name": "prepare.json"
         },
