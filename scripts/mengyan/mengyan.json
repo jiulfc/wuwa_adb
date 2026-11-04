@@ -1,7 +1,29 @@
 {
   "version": 3,
-  "vars": {},
+  "vars": {
+    "challenge_text": ""
+  },
   "steps": [
+    {
+      "type": "ocr_text",
+      "roi": [2043, 586, 185, 52],
+      "output": "${challenge_text}"
+    },
+    {
+      "type": "if",
+      "condition": "${!(challenge_text contains '开')}",
+      "then": [
+        {
+          "type": "script",
+          "script_name": "../common/route_to_quan_xi_huan_tong/main.json"
+        }
+      ],
+      "else": []
+    },
+    {
+      "type": "wait",
+      "wait_ms": 2000
+    },
     {
       "type": "script",
       "script_name": "1_suiboshi/main.json"
