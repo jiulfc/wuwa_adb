@@ -75,6 +75,15 @@
             },
             {
               "type": "wait",
+              "wait_ms": 200
+            },
+            {
+              "type": "tap",
+              "point": "${pickup_points[pickup_region - 1]}",
+              "duration_ms": 100
+            },
+            {
+              "type": "wait",
               "wait_ms": 800
             },
             {
