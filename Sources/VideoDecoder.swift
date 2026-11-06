@@ -94,6 +94,8 @@ enum AnnexB {
 /// Decode once with VideoToolbox; share output between display and skill inference.
 final class VideoDecoder {
     private let layer: AVSampleBufferDisplayLayer
+    private let synchronizer: AVSampleBufferRenderSynchronizer
+    private let receiver: AVSampleBufferVideoRenderer.Receiver
     private var formatDescription: CMVideoFormatDescription?
     private let queue = DispatchQueue(label: "adbquick.video")
     private var session: VTDecompressionSession?
@@ -130,7 +132,7 @@ final class VideoDecoder {
         latestFrame = nil
         decodeError = nil
         frameLock.unlock()
-        layer.flush()
+        receiver.flush()
     }
 
     private func failedDecode(_ status: OSStatus) {
@@ -145,24 +147,27 @@ final class VideoDecoder {
         latestFrame = frame
         decodeError = nil
         frameLock.unlock()
-        guard layer.isReadyForMoreMediaData else { return }
         var description: CMVideoFormatDescription?
         guard CMVideoFormatDescriptionCreateForImageBuffer(allocator: nil, imageBuffer: frame,
                                                            formatDescriptionOut: &description) == noErr,
               let description else { return }
         var timing = CMSampleTimingInfo(duration: .invalid,
-                                       presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
+                                       presentationTimeStamp: synchronizer.currentTime(),
                                        decodeTimeStamp: .invalid)
         var sample: CMSampleBuffer?
         if CMSampleBufferCreateReadyWithImageBuffer(allocator: nil, imageBuffer: frame,
                 formatDescription: description, sampleTiming: &timing, sampleBufferOut: &sample) == noErr,
            let sample {
-            layer.enqueue(sample)
+            _ = receiver.enqueueImmediately(CMReadySampleBuffer(unsafeBuffer: sample))
         }
     }
 
     init(layer: AVSampleBufferDisplayLayer) {
         self.layer = layer
+        let synchronizer = AVSampleBufferRenderSynchronizer()
+        self.synchronizer = synchronizer
+        self.receiver = synchronizer.sampleBufferReceiver(adding: layer.sampleBufferRenderer)
+        synchronizer.rate = 1
     }
 
     /// Clears state on session switches (e.g. rotation).
