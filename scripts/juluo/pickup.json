@@ -93,6 +93,10 @@
           "type": "tap",
           "point": "${pickup_point}",
           "duration_ms": 100
+        },
+        {
+          "type": "wait",
+          "wait_ms": 200
         }
       ],
       "else": [

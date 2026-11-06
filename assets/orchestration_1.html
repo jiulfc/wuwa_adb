@@ -42,25 +42,26 @@
 
     .topbar {
       min-height: 68px; display: flex; align-items: center; gap: 18px; padding: 10px 18px;
-      color: #fff; background: var(--navy); border-bottom: 1px solid #27334a;
+      color: var(--ink); background: #fff; border-bottom: 1px solid #dfe4eb;
     }
     .brand { display: flex; align-items: center; gap: 11px; min-width: 220px; }
     .brand-mark {
       width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px;
-      background: linear-gradient(145deg, #6c8cff, #7c4fd4); box-shadow: 0 6px 18px #0005;
+      color: #fff; background: linear-gradient(145deg, #6c8cff, #7c4fd4); box-shadow: 0 6px 18px #18223524;
     }
     .brand-mark svg { width: 22px; height: 22px; }
     .brand-title { font-size: 15px; font-weight: 750; letter-spacing: .01em; }
-    #workflowLabel { margin-top: 2px; color: #9eabc0; font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #workflowLabel { margin-top: 2px; color: var(--muted); font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .toolbar { display: flex; align-items: center; gap: 7px; }
     .toolbar button, .json-actions button {
-      min-height: 34px; padding: 6px 11px; border: 1px solid #3b465c; border-radius: 8px;
-      color: #e8edf6; background: #1b2537; cursor: pointer;
+      min-height: 34px; padding: 6px 11px; border-radius: 8px; cursor: pointer;
     }
-    .toolbar button:hover { background: #26334a; border-color: #66738a; }
+    .toolbar button { color: var(--ink); background: #fff; border: 1px solid #d1d7e0; }
+    .toolbar button:hover { background: #f4f6f9; border-color: #9ba6b6; }
     .toolbar .primary { color: #fff; background: var(--blue); border-color: #5480ef; }
-    #status { margin-left: auto; max-width: 320px; color: #9eabc0; font-size: 12px; text-align: right; }
-    #status.error { color: #ff999d; }
+    .json-actions button { color: #e8edf6; background: #1b2537; border: 1px solid #3b465c; }
+    #status { margin-left: auto; max-width: 320px; color: var(--muted); font-size: 12px; text-align: right; }
+    #status.error { color: var(--red); }
 
     .workspace {
       min-height: 0; flex: 1; display: grid;
@@ -750,6 +751,8 @@
         control.value = typeof value === 'string' ? value : JSON.stringify(value);
         control.placeholder = '${done} or true';
       }
+      control.required = control.type !== 'checkbox' && key !== 'label' && !isProps && !(selectedStep.type === 'assign' && key === 'value');
+      if (control.required) label.textContent += ' *';
       control.addEventListener('change', () => updateParameter(key, value, control));
       field.append(label, control);
       return field;
@@ -806,6 +809,7 @@
 
     function updateParameter(key, original, control) {
       try {
+        if (!control.reportValidity()) throw new Error('This parameter is required');
         const isProps = selectedStep.type === 'script' && key === 'props';
         const isUntil = selectedStep.type === 'run_until' && key === 'until';
         const value = isProps ? readProps(control.value) : (isUntil ? readUntil(control.value) : readValue(control, original));

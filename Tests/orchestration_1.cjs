@@ -24,6 +24,9 @@ assert.match(script, /function renderRunUntil\(/);
 assert.match(html, /\.run-until-board/);
 assert.match(script, /until: '\$\{done\}'/);
 assert.match(script, /done: false/);
+assert.match(script, /control\.required = control\.type !== 'checkbox'/);
+assert.match(script, /if \(!control\.reportValidity\(\)\) throw new Error\('This parameter is required'\)/);
+assert.match(html, /\.topbar \{[\s\S]*?background: #fff; border-bottom: 1px solid #dfe4eb;/);
 
 function source(name, next) {
   return script.slice(script.indexOf(`    function ${name}(`), script.indexOf(`    function ${next}(`));
