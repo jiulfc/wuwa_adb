@@ -1,0 +1,11 @@
+{
+  "version": 3,
+  "vars": {},
+  "steps": [
+    {
+      "type": "tap",
+      "point": [2831, 462],
+      "duration_ms": 100
+    }
+  ]
+}
