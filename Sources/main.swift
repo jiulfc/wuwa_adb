@@ -70,6 +70,11 @@ let orchestrationItem = NSMenuItem(title: "Flow Orchestrator",
                                    keyEquivalent: "o")
 orchestrationItem.target = delegate
 viewMenu.addItem(orchestrationItem)
+let deviceInputItem = NSMenuItem(title: "Device Input Recorder",
+                                 action: #selector(AppDelegate.openDeviceInputRecorder),
+                                 keyEquivalent: "i")
+deviceInputItem.target = delegate
+viewMenu.addItem(deviceInputItem)
 viewMenuItem.submenu = viewMenu
 
 // Window menu

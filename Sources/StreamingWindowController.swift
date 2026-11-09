@@ -16,7 +16,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
     private var deviceName: String = ""
     private var isPlayingBack = false
     private var playbackGeneration = 0
-    private var playbackTouch: (Double, Double)?
+    private var playbackTouches: [Int64: (Double, Double)] = [:]
     private var classifier: SkillClassifier?
     private let replayQueue = DispatchQueue(label: "adbquick.replay")
 
@@ -334,6 +334,31 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         updateWindowTitle()
     }
 
+    var inputRecordingTarget: InputRecordingTarget? {
+        guard deviceWidth > 0, deviceHeight > 0, client?.controlSender != nil else { return nil }
+        return InputRecordingTarget(serial: device.serial, name: deviceName,
+                                    width: deviceWidth, height: deviceHeight)
+    }
+
+    func preparePhysicalInputRecording() {
+        client?.controlSender?.sendSetDisplayPower(true)
+    }
+
+    func playRecordedScript(_ script: Script) throws {
+        guard client?.controlSender != nil, deviceWidth > 0, deviceHeight > 0 else {
+            throw replayError("Connect a mirrored device before replaying.")
+        }
+        guard !isRecording else { throw replayError("Stop mirror-window recording first.") }
+        guard script.deviceWidth == deviceWidth, script.deviceHeight == deviceHeight else {
+            throw replayError("Device orientation or size changed after recording.")
+        }
+        try script.validate()
+        play(script)
+        controlInfoStore.playbackStatus = "Running"
+        controlInfoStore.setRunningScriptName("Device input recording")
+        reportInfo("Playing Device Input", point: nil)
+    }
+
     private func stopRecordingAndSave() {
         guard isRecording else { return }
         isRecording = false
@@ -396,6 +421,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         let generation = playbackGeneration
         updateWindowTitle()
         playCycle(script, remaining: script.playbackRepeatCount, generation: generation) { [weak self] in
+            self?.releasePlaybackTouches()
             self?.isPlayingBack = false
             self?.controlInfoStore.setRunningScriptName(nil)
             self?.controlInfoStore.playbackStatus = "Completed"
@@ -435,9 +461,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
     }
 
     private func stopPlayback() {
-        if let point = playbackTouch {
-            executeEvent(.touch(action: Int(ControlSender.actionUp), relX: point.0, relY: point.1, t: 0))
-        }
+        releasePlaybackTouches()
         playbackGeneration += 1
         classifier?.stop()
         classifier = nil
@@ -635,8 +659,8 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
         guard !script.events.isEmpty else { return }
         defer {
             DispatchQueue.main.sync {
-                guard self.playbackGeneration == generation, let point = self.playbackTouch else { return }
-                self.executeEvent(.touch(action: Int(ControlSender.actionUp), relX: point.0, relY: point.1, t: 0))
+                guard self.playbackGeneration == generation else { return }
+                self.releasePlaybackTouches()
             }
         }
         for cycle in 1...script.playbackRepeatCount {
@@ -675,14 +699,19 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             guard let action = event.action, (0...2).contains(action),
                   let relX = event.relX, let relY = event.relY,
                   relX.isFinite, relY.isFinite, (0...1).contains(relX), (0...1).contains(relY) else { return }
-            playbackTouch = action == Int(ControlSender.actionUp) ? nil : (relX, relY)
+            let pointerId = event.pointerId ?? -1
+            if action == Int(ControlSender.actionUp) {
+                playbackTouches.removeValue(forKey: pointerId)
+            } else {
+                playbackTouches[pointerId] = (relX, relY)
+            }
             let x = min(Int32(deviceWidth) - 1, Int32(relX * Double(deviceWidth)))
             let y = min(Int32(deviceHeight) - 1, Int32(relY * Double(deviceHeight)))
             let actionButton: Int32 = (action == ControlSender.actionMove) ? 0 : 1
             let buttons: Int32 = (action == ControlSender.actionUp) ? 0 : 1
             sender.sendTouch(action: UInt8(action), x: x, y: y,
                              screenWidth: UInt16(deviceWidth), screenHeight: UInt16(deviceHeight),
-                             actionButton: actionButton, buttons: buttons)
+                             actionButton: actionButton, buttons: buttons, pointerId: pointerId)
         case "scroll":
             guard let relX = event.relX, let relY = event.relY,
                   relX.isFinite, relY.isFinite, (0...1).contains(relX), (0...1).contains(relY) else { return }
@@ -701,6 +730,14 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             }
         default:
             break
+        }
+    }
+
+    private func releasePlaybackTouches() {
+        let touches = playbackTouches
+        for (pointerId, point) in touches {
+            executeEvent(.touch(action: Int(ControlSender.actionUp), relX: point.0, relY: point.1,
+                                t: 0, pointerId: pointerId))
         }
     }
 

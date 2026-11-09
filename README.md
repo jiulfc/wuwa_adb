@@ -8,6 +8,7 @@ Built with Swift, AppKit, VideoToolbox, Vision, and WebKit. The app uses the scr
 
 - Live H.264 screen mirroring with touch, drag, scroll, and device rotation.
 - A control panel with navigation, power, screenshots, recording, playback progress, and absolute/relative pointer coordinates.
+- Physical-device touch recording through `adb getevent`, including display rotation and multiple simultaneous pointers.
 - Text clipboard support: paste from the Mac with `Cmd+V` and receive device clipboard updates.
 - JSON v3 automation with variables, expressions, loops, conditional branches, nested scripts, and timed cancellation.
 - On-screen OCR, colored-ring percentage detection, and optional skill classification through `wuwa_classify`.
@@ -77,6 +78,7 @@ Device shortcuts apply while the mirrored screen has focus.
 | `Cmd+V` | Paste Mac clipboard text into the device |
 | `Cmd+K` | Show/hide Control Panel |
 | `Cmd+O` | Open Flow Orchestrator |
+| `Cmd+I` | Open Device Input Recorder |
 | `Cmd+,` | Open Settings |
 
 The **Control Panel** also provides Home, Back, Rotate, Power, and Screenshot buttons. Screenshots are saved as timestamped PNGs and revealed in Finder.
@@ -89,6 +91,8 @@ The **Control Panel** also provides Home, Back, Rotate, Power, and Screenshot bu
 4. Click **Playback** again to cancel execution.
 
 Recordings capture touch, scroll, and supported device-key actions with relative timing. Clipboard paste and screenshots are not recorded input events.
+
+To record touches made on the Android device itself, open **View → Device Input Recorder** (`Cmd+I`). Click **Record Device**, operate the physical touchscreen, then stop. The resulting JSON v3 script can be saved or replayed immediately; mirror-window clicks are intentionally not captured by this recorder.
 
 ## Workflows
 
@@ -136,6 +140,11 @@ swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-circle-che
   Sources/WorkflowModel.swift Sources/CirclePercentageDetector.swift \
   Tests/CirclePercentageTests.swift
 /tmp/adbquick-circle-check
+
+swiftc -module-cache-path /tmp/adbquick-module-cache -o /tmp/adbquick-getevent-check \
+  Sources/WorkflowModel.swift Sources/Models.swift Sources/AdbClient.swift \
+  Sources/Script.swift Sources/GetEventRecorder.swift Tests/GetEventRecorderTests.swift
+/tmp/adbquick-getevent-check
 
 # Requires Node.js
 node Tests/orchestration_props.cjs

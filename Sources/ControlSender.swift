@@ -46,11 +46,12 @@ final class ControlSender {
 
     func sendTouch(action: UInt8, x: Int32, y: Int32,
                    screenWidth: UInt16, screenHeight: UInt16,
-                   actionButton: Int32, buttons: Int32) {
+                   actionButton: Int32, buttons: Int32,
+                   pointerId: Int64 = -1) {
         var d = Data()
         d.append(Self.typeInjectTouchEvent)
         d.append(action)
-        d.appendBE(Int64(-1))            // pointerId (mouse)
+        d.appendBE(pointerId)
         d.appendBE(x)
         d.appendBE(y)
         d.appendBE(screenWidth)

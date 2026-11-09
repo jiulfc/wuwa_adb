@@ -15,44 +15,20 @@
           "value": "${counter + 1}"
         },
         {
-          "label": "Reset Team",
           "type": "script",
           "script_name": "../../common/change_role_21.json"
         },
         {
+          "type": "script",
+          "script_name": "battle.json"
+        },
+        {
           "type": "wait",
           "wait_ms": 2000
         },
         {
           "type": "script",
-          "script_name": "prepare_feixue.json"
-        },
-        {
-          "type": "wait",
-          "wait_ms": 2000
-        },
-        {
-          "type": "run_until",
-          "check_every_ms": 500,
-          "timeout_ms": 300000,
-          "until": "${stop_text contains '已' || stop_text contains '己清'}",
-          "check": [
-            {
-              "type": "ocr_text",
-              "roi": [222, 397, 319, 49],
-              "output": "${stop_text}"
-            }
-          ],
-          "steps": [
-            {
-              "type": "script",
-              "script_name": "../../common/combat_role_feixue.json"
-            }
-          ]
-        },
-        {
-          "type": "script",
-          "script_name": "pickup.json"
+          "script_name": "../../common/pickup.json"
         },
         {
           "type": "wait",

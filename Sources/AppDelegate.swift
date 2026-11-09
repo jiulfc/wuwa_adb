@@ -7,6 +7,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var controlPanelController = ControlPanelWindowController(store: controlInfoStore)
     private lazy var debugController = DebugWindowController(store: controlInfoStore)
     private lazy var orchestrationController = OrchestrationWindowController()
+    private lazy var deviceInputRecorderController = DeviceInputRecorderWindowController(
+        targetProvider: { [weak self] in self?.streamingController?.inputRecordingTarget },
+        prepareDevice: { [weak self] in self?.streamingController?.preparePhysicalInputRecording() },
+        replay: { [weak self] script in
+            guard let controller = self?.streamingController else {
+                throw replayError("Connect a mirrored device before replaying.")
+            }
+            try controller.playRecordedScript(script)
+        }
+    )
     private var streamingController: StreamingWindowController?
     private let mirrorSerial: String?
 
@@ -66,6 +76,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func openOrchestration() {
         orchestrationController.show()
+    }
+
+    @objc func openDeviceInputRecorder() {
+        deviceInputRecorderController.show()
     }
 
     private func startStreaming(device: Device) {
