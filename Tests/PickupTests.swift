@@ -21,6 +21,22 @@ struct PickupCheck {
             default: return step
             }
         }
+        func verifyJoystickCenter(_ workflow: Workflow) {
+            func dragStarts(_ steps: [Step]) -> [Input] {
+                steps.flatMap { step in
+                    switch step {
+                    case .drag(let from, _, _): return [from]
+                    case .whileLoop(_, let body): return dragStarts(body)
+                    case .conditional(_, let yes, let no): return dragStarts(yes) + dragStarts(no)
+                    default: return []
+                    }
+                }
+            }
+            precondition(workflow.variables["joystick_center"] == .array([.number(498), .number(1079)]))
+            let starts = dragStarts(workflow.steps)
+            precondition(!starts.isEmpty && starts.allSatisfy { $0 == .expression(.variable("joystick_center")) })
+        }
+        verifyJoystickCenter(circleOriginal)
         let workflow = Workflow(version: circleOriginal.version, variables: circleOriginal.variables,
                                 steps: circleOriginal.steps.map(fast))
         let directions: [[Double]] = [[501, 880], [701, 1080], [501, 1280], [301, 1080]]
@@ -69,6 +85,7 @@ struct PickupCheck {
         }
         let crossURL = URL(fileURLWithPath: "scripts/common/pickup_cross.json").standardizedFileURL
         let crossOriginal = try WorkflowParser().parse(Data(contentsOf: crossURL))
+        verifyJoystickCenter(crossOriginal)
         let cross = Workflow(version: crossOriginal.version, variables: crossOriginal.variables,
                              steps: crossOriginal.steps.map(fast))
         let crossDirections: [[Double]] = [[501, 880], [501, 1280], [301, 1080], [701, 1080]]
@@ -116,6 +133,7 @@ struct PickupCheck {
         }
         let spiralURL = URL(fileURLWithPath: "scripts/common/pickup_spiral_scan.json").standardizedFileURL
         let spiralOriginal = try WorkflowParser().parse(Data(contentsOf: spiralURL))
+        verifyJoystickCenter(spiralOriginal)
         let spiral = Workflow(version: spiralOriginal.version, variables: spiralOriginal.variables,
                               steps: spiralOriginal.steps.map(fast))
         guard case .number(let maxRadiusValue)? = spiralOriginal.variables["max_radius_steps"],

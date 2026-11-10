@@ -4,6 +4,7 @@
     "phase": 0,
     "leg_ms": 500,
     "remaining_ms": 500,
+    "joystick_center": [498, 1079],
     "directions": [
       [501, 880],
       [701, 1080],
@@ -102,7 +103,7 @@
         },
         {
           "type": "drag",
-          "from": [501, 1080],
+          "from": "${joystick_center}",
           "to": "${directions[phase % 4]}",
           "duration_ms": 250
         },

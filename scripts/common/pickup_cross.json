@@ -9,6 +9,7 @@
     "direction_index": 0,
     "outward_steps": 0,
     "move_count": 0,
+    "joystick_center": [498, 1079],
     "directions": [
       [501, 880],
       [501, 1280],
@@ -53,7 +54,7 @@
               "steps": [
                 {
                   "type": "drag",
-                  "from": [501, 1080],
+                  "from": "${joystick_center}",
                   "to": "${directions[direction_index]}",
                   "duration_ms": 250
                 },
@@ -152,7 +153,7 @@
           "steps": [
             {
               "type": "drag",
-              "from": [501, 1080],
+              "from": "${joystick_center}",
               "to": "${return_directions[direction_index]}",
               "duration_ms": 250
             },

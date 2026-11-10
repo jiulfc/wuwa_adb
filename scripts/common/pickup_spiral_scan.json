@@ -27,6 +27,7 @@
       [2096.5, 612],
       [2096.5, 738]
     ],
+    "joystick_center": [498, 1079],
     "directions": [
       [501, 880],
       [701, 1080],
@@ -202,7 +203,7 @@
         },
         {
           "type": "drag",
-          "from": [501, 1080],
+          "from": "${joystick_center}",
           "to": "${directions[phase % 4]}",
           "duration_ms": "${lane_spacing_steps * step_duration_ms}"
         },
