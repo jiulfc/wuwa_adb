@@ -4,7 +4,10 @@ import Foundation
 struct PickupCheck {
     static func main() throws {
         let common = URL(fileURLWithPath: "scripts/common/pickup.json").standardizedFileURL
-        let original = try WorkflowParser().parse(Data(contentsOf: common))
+        let commonWorkflow = try WorkflowParser().parse(Data(contentsOf: common))
+        precondition(commonWorkflow.steps == [.script(name: .literal(.string("pickup_spiral_scan.json")))])
+        let circleURL = URL(fileURLWithPath: "scripts/common/pickup_circle.json").standardizedFileURL
+        let circleOriginal = try WorkflowParser().parse(Data(contentsOf: circleURL))
         // Keep the real control flow and movement accounting; skip device delays.
         func fast(_ step: Step) -> Step {
             switch step {
@@ -18,7 +21,8 @@ struct PickupCheck {
             default: return step
             }
         }
-        let workflow = Workflow(version: original.version, variables: original.variables, steps: original.steps.map(fast))
+        let workflow = Workflow(version: circleOriginal.version, variables: circleOriginal.variables,
+                                steps: circleOriginal.steps.map(fast))
         let directions: [[Double]] = [[501, 880], [701, 1080], [501, 1280], [301, 1080]]
         let expected = (0..<20).flatMap { phase in
             Array(repeating: directions[phase % 4], count: (phase / 2 + 1) * 2)
@@ -95,7 +99,7 @@ struct PickupCheck {
                 }, touch: { point, action in
                     if action == .move { moves.append(point) }
                     if action == .down && point[0] == 2096.5 { taps.append(point) }
-                }, log: { _ in }).run(cross.applying(props: ["fallback_script": .string("pickup.json")]))
+                }, log: { _ in }).run(cross.applying(props: ["fallback_script": .string("pickup_circle.json")]))
             if findsPickup {
                 precondition(moves == Array(repeating: crossDirections[0], count: pickupStep))
                 precondition(taps.map { $0[1] } == [738, 738])
@@ -107,14 +111,106 @@ struct PickupCheck {
                 let checksPerArm = (maxSteps + stepsPerCheck - 1) / stepsPerCheck
                 precondition(reads == checksPerArm * 2 * crossDirections.count,
                              "Cross pickup must check both regions at the configured interval")
-                precondition(scripts == ["pickup.json"], "Circle pickup must run after the cross misses")
+                precondition(scripts == ["pickup_circle.json"], "Circle pickup must run after the cross misses")
             }
         }
-        let crossCircleURL = URL(fileURLWithPath: "scripts/common/pickup_cross_circle.json").standardizedFileURL
-        let crossCircle = try WorkflowParser().parse(Data(contentsOf: crossCircleURL))
-        precondition(crossCircle.steps == [.script(name: .literal(.string("pickup_cross.json")), props: .object([
-            "fallback_script": .literal(.string("pickup.json"))
-        ]))])
+        let spiralURL = URL(fileURLWithPath: "scripts/common/pickup_spiral_scan.json").standardizedFileURL
+        let spiralOriginal = try WorkflowParser().parse(Data(contentsOf: spiralURL))
+        let spiral = Workflow(version: spiralOriginal.version, variables: spiralOriginal.variables,
+                              steps: spiralOriginal.steps.map(fast))
+        guard case .number(let maxRadiusValue)? = spiralOriginal.variables["max_radius_steps"],
+              case .number(let laneSpacingValue)? = spiralOriginal.variables["lane_spacing_steps"],
+              case .number(let ocrPassesValue)? = spiralOriginal.variables["ocr_passes"] else {
+            fatalError("Missing spiral pickup configuration")
+        }
+        let radiusChunks = Int(maxRadiusValue / laneSpacingValue)
+        let totalSpiralMoves = 4 * radiusChunks * (radiusChunks + 1)
+        precondition(maxRadiusValue == 16 && laneSpacingValue == 2 && ocrPassesValue == 2)
+        var expectedSpiral: [[Double]] = []
+        var spiralPhase = 0
+        var spiralLeg = 1
+        while expectedSpiral.count < totalSpiralMoves {
+            expectedSpiral += Array(repeating: directions[spiralPhase % directions.count],
+                                    count: min(spiralLeg, totalSpiralMoves - expectedSpiral.count))
+            spiralPhase += 1
+            if spiralPhase % 2 == 0 { spiralLeg += 1 }
+        }
+        let combinedROI = [2041.0, 589, 111, 172]
+        let upperROI = [2041.0, 589, 111, 46]
+        let lowerROI = [2041.0, 715, 111, 46]
+        do {
+            var moves: [[Double]] = []
+            var combinedReads = 0
+            try WorkflowRunner(checkCancelled: {}, script: { _, _, _ in fatalError("Unexpected child") },
+                vision: { kind, roi, _, _ in
+                    precondition(kind == .ocrText && roi == combinedROI)
+                    combinedReads += 1
+                    return .string("")
+                }, touch: { point, action in
+                    if action == .move { moves.append(point) }
+                }, log: { _ in }).run(spiral)
+            precondition(moves == expectedSpiral, "Spiral must cover every bounded search position")
+            precondition(combinedReads == (totalSpiralMoves + 1) * 2,
+                         "Spiral must check the center, every move endpoint, and retry OCR")
+        }
+        for pickupY in [612.0, 738.0] {
+            var moves: [[Double]] = []
+            var taps: [[Double]] = []
+            var combinedReads = 0
+            try WorkflowRunner(checkCancelled: {}, script: { _, _, _ in fatalError("Unexpected child") },
+                vision: { kind, roi, _, _ in
+                    precondition(kind == .ocrText && taps.isEmpty)
+                    if roi == combinedROI {
+                        combinedReads += 1
+                        if pickupY == 612 || combinedReads == 2 { return .string("点击吸收") }
+                        return .string("")
+                    }
+                    if roi == upperROI { return .string(pickupY == 612 ? "吸收" : "") }
+                    if roi == lowerROI { return .string(pickupY == 738 ? "吸收" : "") }
+                    fatalError("Unexpected pickup ROI")
+                }, touch: { point, action in
+                    if action == .move { moves.append(point) }
+                    if action == .down && point[0] == 2096.5 { taps.append(point) }
+                }, log: { _ in }).run(spiral)
+            precondition(moves.isEmpty, "Pickup at the center must not move")
+            precondition(combinedReads == (pickupY == 612 ? 1 : 2), "Combined OCR retry count")
+            precondition(taps.map { $0[1] } == [pickupY, pickupY])
+        }
+        do {
+            var moves: [[Double]] = []
+            var taps: [[Double]] = []
+            try WorkflowRunner(checkCancelled: {}, script: { _, _, _ in fatalError("Unexpected child") },
+                vision: { kind, roi, _, _ in
+                    precondition(kind == .ocrText && taps.isEmpty)
+                    if roi == combinedROI { return .string("吸收") }
+                    if moves.count == 1 && roi == upperROI { return .string("吸收") }
+                    if roi == upperROI || roi == lowerROI { return .string("") }
+                    fatalError("Unexpected pickup ROI")
+                }, touch: { point, action in
+                    if action == .move {
+                        precondition(taps.isEmpty, "No movement after pickup")
+                        moves.append(point)
+                    }
+                    if action == .down && point[0] == 2096.5 { taps.append(point) }
+                }, log: { _ in }).run(spiral)
+            precondition(moves == [directions[0]], "A combined-ROI false positive must not stop the search")
+            precondition(taps.map { $0[1] } == [612, 612])
+        }
+        for invalid in [
+            ("max_radius_steps", 0.0), ("lane_spacing_steps", 0), ("max_radius_steps", 15),
+            ("step_duration_ms", 0), ("settle_ms", -1), ("initial_settle_ms", -1), ("ocr_passes", 0)
+        ] {
+            var variables = spiralOriginal.variables
+            variables[invalid.0] = .number(invalid.1)
+            let invalidSpiral = Workflow(version: spiralOriginal.version, variables: variables,
+                                         steps: spiralOriginal.steps.map(fast))
+            var logs: [String] = []
+            try WorkflowRunner(checkCancelled: {}, script: { _, _, _ in fatalError("Unexpected child") },
+                vision: { _, _, _, _ in fatalError("Invalid configuration must not scan") },
+                touch: { _, _ in fatalError("Invalid configuration must not move") },
+                log: { logs.append($0) }).run(invalidSpiral)
+            precondition(logs.contains { $0.contains("Invalid pickup spiral configuration") })
+        }
         let juluoCommon = URL(fileURLWithPath: "scripts/juluo/pickup.json").standardizedFileURL
         let quickOriginal = try WorkflowParser().parse(Data(contentsOf: juluoCommon))
         let quick = Workflow(version: quickOriginal.version, variables: quickOriginal.variables,
@@ -141,7 +237,7 @@ struct PickupCheck {
                          "Quick pickup moves at most one phase")
             let expectedTaps: [[Double]] = [[612, 612], [738, 738], [612, 612], [738, 738], []]
             precondition(taps.map { $0[1] } == expectedTaps[scenario])
-            let expectedScripts = scenario == 4 ? ["fixture/pickup_prepare.json", "../common/pickup_cross.json"] : []
+            let expectedScripts = scenario == 4 ? ["fixture/pickup_prepare.json", "../common/pickup.json"] : []
             precondition(scripts == expectedScripts,
                          "Prepare must immediately precede the original pickup in scenario \(scenario): \(scripts)")
         }
@@ -165,9 +261,9 @@ struct PickupCheck {
             }
             wrappers += 1
         }
-        precondition(wrappers == 12)
-        precondition(juluoCommon.deletingLastPathComponent().appendingPathComponent("../common/pickup_cross.json")
-            .standardizedFileURL == crossURL)
+        precondition(wrappers == 7)
+        precondition(juluoCommon.deletingLastPathComponent().appendingPathComponent("../common/pickup.json")
+            .standardizedFileURL == common)
         for name in ["1_mengshu", "2_luoyuan", "3_wangmang", "4_fusheng", "5_xianzu"] {
             let main = try WorkflowParser().parse(Data(contentsOf: URL(fileURLWithPath: "scripts/juluo/\(name)/main.json")))
             let fastMain = Workflow(version: main.version, variables: main.variables, steps: main.steps.map(fast))
@@ -181,7 +277,7 @@ struct PickupCheck {
             expectedScripts += ["pickup.json", "../../common/route_to_quan_xi_huan_tong/main.json"]
             precondition(scripts == expectedScripts, "Every Juluo main delegates pickup and returns through the shared route")
         }
-        print("Pickup spiral and cross, return after tap in either region, endpoint, and all 12 wrappers passed")
-        print("All five Juluo scripts: instant, one-phase, prepare-then-cross fallback, and return route passed")
+        print("Pickup circle, cross, bounded spiral, OCR retry/localization, and all 7 wrappers passed")
+        print("All five Juluo scripts: instant, one-phase, prepare-then-spiral fallback, and return route passed")
     }
 }

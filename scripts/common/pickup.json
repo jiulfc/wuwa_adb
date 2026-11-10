@@ -4,10 +4,7 @@
   "steps": [
     {
       "type": "script",
-      "script_name": "pickup_cross.json",
-      "props": {
-        "fallback_script": "pickup_circle.json"
-      }
+      "script_name": "pickup_spiral_scan.json"
     }
   ]
 }

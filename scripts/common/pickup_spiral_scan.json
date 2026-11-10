@@ -1,0 +1,253 @@
+{
+  "version": 3,
+  "vars": {
+    "max_radius_steps": 16,
+    "lane_spacing_steps": 2,
+    "step_duration_ms": 250,
+    "settle_ms": 50,
+    "initial_settle_ms": 300,
+    "ocr_passes": 2,
+    "radius_chunks": 0,
+    "total_moves": 0,
+    "move_count": 0,
+    "phase": 0,
+    "leg_chunks": 1,
+    "remaining_chunks": 1,
+    "scan_pass": 0,
+    "locate_pass": 0,
+    "pickup_candidate": false,
+    "pickup_region": 0,
+    "pickup_text": "",
+    "combined_roi": [2041, 589, 111, 172],
+    "pickup_rois": [
+      [2041, 589, 111, 46],
+      [2041, 715, 111, 46]
+    ],
+    "pickup_points": [
+      [2096.5, 612],
+      [2096.5, 738]
+    ],
+    "directions": [
+      [501, 880],
+      [701, 1080],
+      [501, 1280],
+      [301, 1080]
+    ]
+  },
+  "steps": [
+    {
+      "type": "if",
+      "condition": "${max_radius_steps <= 0 || lane_spacing_steps <= 0 || max_radius_steps % lane_spacing_steps != 0 || step_duration_ms <= 0 || settle_ms < 0 || initial_settle_ms < 0 || ocr_passes <= 0}",
+      "then": [
+        {
+          "type": "debug",
+          "info": "Invalid pickup spiral configuration"
+        },
+        {
+          "type": "return"
+        }
+      ]
+    },
+    {
+      "type": "assign",
+      "target": "${radius_chunks}",
+      "value": "${max_radius_steps / lane_spacing_steps}"
+    },
+    {
+      "type": "assign",
+      "target": "${total_moves}",
+      "value": "${4 * radius_chunks * (radius_chunks + 1)}"
+    },
+    {
+      "type": "wait",
+      "wait_ms": "${initial_settle_ms}"
+    },
+    {
+      "type": "while",
+      "condition": "${move_count <= total_moves}",
+      "steps": [
+        {
+          "type": "assign",
+          "target": "${pickup_candidate}",
+          "value": false
+        },
+        {
+          "type": "assign",
+          "target": "${scan_pass}",
+          "value": 0
+        },
+        {
+          "type": "while",
+          "condition": "${scan_pass < ocr_passes && !pickup_candidate}",
+          "steps": [
+            {
+              "type": "ocr_text",
+              "roi": "${combined_roi}",
+              "output": "${pickup_text}"
+            },
+            {
+              "type": "if",
+              "condition": "${pickup_text contains '吸收'}",
+              "then": [
+                {
+                  "type": "assign",
+                  "target": "${pickup_candidate}",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "type": "assign",
+              "target": "${scan_pass}",
+              "value": "${scan_pass + 1}"
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${pickup_candidate}",
+          "then": [
+            {
+              "type": "assign",
+              "target": "${pickup_region}",
+              "value": 0
+            },
+            {
+              "type": "assign",
+              "target": "${locate_pass}",
+              "value": 0
+            },
+            {
+              "type": "while",
+              "condition": "${locate_pass < ocr_passes && pickup_region == 0}",
+              "steps": [
+                {
+                  "type": "ocr_text",
+                  "roi": "${pickup_rois[0]}",
+                  "output": "${pickup_text}"
+                },
+                {
+                  "type": "if",
+                  "condition": "${pickup_text contains '吸收'}",
+                  "then": [
+                    {
+                      "type": "assign",
+                      "target": "${pickup_region}",
+                      "value": 1
+                    }
+                  ],
+                  "else": [
+                    {
+                      "type": "ocr_text",
+                      "roi": "${pickup_rois[1]}",
+                      "output": "${pickup_text}"
+                    },
+                    {
+                      "type": "if",
+                      "condition": "${pickup_text contains '吸收'}",
+                      "then": [
+                        {
+                          "type": "assign",
+                          "target": "${pickup_region}",
+                          "value": 2
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "assign",
+                  "target": "${locate_pass}",
+                  "value": "${locate_pass + 1}"
+                }
+              ]
+            },
+            {
+              "type": "if",
+              "condition": "${pickup_region != 0}",
+              "then": [
+                {
+                  "type": "tap",
+                  "point": "${pickup_points[pickup_region - 1]}",
+                  "duration_ms": 100
+                },
+                {
+                  "type": "wait",
+                  "wait_ms": 200
+                },
+                {
+                  "type": "tap",
+                  "point": "${pickup_points[pickup_region - 1]}",
+                  "duration_ms": 100
+                },
+                {
+                  "type": "wait",
+                  "wait_ms": 800
+                },
+                {
+                  "type": "return"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": "${move_count == total_moves}",
+          "then": [
+            {
+              "type": "break"
+            }
+          ]
+        },
+        {
+          "type": "drag",
+          "from": [501, 1080],
+          "to": "${directions[phase % 4]}",
+          "duration_ms": "${lane_spacing_steps * step_duration_ms}"
+        },
+        {
+          "type": "wait",
+          "wait_ms": "${settle_ms}"
+        },
+        {
+          "type": "assign",
+          "target": "${move_count}",
+          "value": "${move_count + 1}"
+        },
+        {
+          "type": "assign",
+          "target": "${remaining_chunks}",
+          "value": "${remaining_chunks - 1}"
+        },
+        {
+          "type": "if",
+          "condition": "${remaining_chunks == 0}",
+          "then": [
+            {
+              "type": "assign",
+              "target": "${phase}",
+              "value": "${phase + 1}"
+            },
+            {
+              "type": "if",
+              "condition": "${phase % 2 == 0}",
+              "then": [
+                {
+                  "type": "assign",
+                  "target": "${leg_chunks}",
+                  "value": "${leg_chunks + 1}"
+                }
+              ]
+            },
+            {
+              "type": "assign",
+              "target": "${remaining_chunks}",
+              "value": "${leg_chunks}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
