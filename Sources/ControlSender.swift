@@ -46,7 +46,7 @@ final class ControlSender {
 
     func sendTouch(action: UInt8, x: Int32, y: Int32,
                    screenWidth: UInt16, screenHeight: UInt16,
-                   actionButton: Int32, buttons: Int32,
+                   pressure: Double, actionButton: Int32, buttons: Int32,
                    pointerId: Int64 = -1) {
         var d = Data()
         d.append(Self.typeInjectTouchEvent)
@@ -56,7 +56,8 @@ final class ControlSender {
         d.appendBE(y)
         d.appendBE(screenWidth)
         d.appendBE(screenHeight)
-        d.appendBE(UInt16(0xFFFF))       // pressure = 1.0
+        let normalizedPressure = pressure.isFinite ? min(1, max(0, pressure)) : 0
+        d.appendBE(UInt16((normalizedPressure * Double(UInt16.max)).rounded()))
         d.appendBE(actionButton)
         d.appendBE(buttons)
         send(d)

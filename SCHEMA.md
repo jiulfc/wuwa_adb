@@ -413,7 +413,7 @@ The loader also accepts recorded-event files (`version`, `deviceWidth`, `deviceH
 
 | Format | Inputs | Behavior |
 | --- | --- | --- |
-| Recording | `events` with `type` (`touch`, `scroll`, `key`), `t` in seconds, and event-specific fields | Replays recorded events. Touch uses `action` 0/1/2 and normalized `relX`/`relY`; scroll also uses `hScroll`/`vScroll`; key uses `key`. `repeatCount` defaults to one and values below one are treated as one. |
+| Recording | `events` with `type` (`touch`, `scroll`, `key`), `t` in seconds, and event-specific fields | Replays recorded events. Touch uses `action` 0/1/2, normalized `relX`/`relY`, and optional normalized `pressure` (`0...1`); missing down/move pressure gets a human-like simulated value and touch-up pressure must be zero. Scroll also uses `hScroll`/`vScroll`; key uses `key`. `repeatCount` defaults to one and values below one are treated as one. |
 | Sequence | Nonempty `run` array of filenames or objects with `name`, optional `id` and `label`; positive `script_loop_count` defaults to one | Executes entries in order per loop. IDs must be unique and nonempty; omitted IDs become `step_1`, etc. |
 
 `props` belongs to a DSL `script` step and is not a `run` entry field. Old `battle` / `pickup` script types and legacy sequence conditions are unsupported.

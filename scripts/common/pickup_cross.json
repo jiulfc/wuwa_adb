@@ -1,0 +1,188 @@
+{
+  "version": 3,
+  "vars": {
+    "props": {
+      "fallback_script": ""
+    },
+    "max_steps": 16,
+    "steps_per_check": 2,
+    "direction_index": 0,
+    "outward_steps": 0,
+    "move_count": 0,
+    "directions": [
+      [501, 880],
+      [501, 1280],
+      [301, 1080],
+      [701, 1080]
+    ],
+    "return_directions": [
+      [501, 1280],
+      [501, 880],
+      [701, 1080],
+      [301, 1080]
+    ],
+    "pickup_points": [
+      [2096.5, 612],
+      [2096.5, 738]
+    ],
+    "pickup_text": "",
+    "pickup_region": 0
+  },
+  "steps": [
+    {
+      "type": "while",
+      "condition": "${direction_index < 4}",
+      "steps": [
+        {
+          "type": "assign",
+          "target": "${outward_steps}",
+          "value": 0
+        },
+        {
+          "type": "while",
+          "condition": "${outward_steps < max_steps}",
+          "steps": [
+            {
+              "type": "assign",
+              "target": "${move_count}",
+              "value": 0
+            },
+            {
+              "type": "while",
+              "condition": "${move_count < steps_per_check && outward_steps < max_steps}",
+              "steps": [
+                {
+                  "type": "drag",
+                  "from": [501, 1080],
+                  "to": "${directions[direction_index]}",
+                  "duration_ms": 250
+                },
+                {
+                  "type": "wait",
+                  "wait_ms": 150
+                },
+                {
+                  "type": "assign",
+                  "target": "${move_count}",
+                  "value": "${move_count + 1}"
+                },
+                {
+                  "type": "assign",
+                  "target": "${outward_steps}",
+                  "value": "${outward_steps + 1}"
+                }
+              ]
+            },
+            {
+              "type": "assign",
+              "target": "${pickup_region}",
+              "value": 0
+            },
+            {
+              "type": "ocr_text",
+              "roi": [2041, 589, 111, 46],
+              "output": "${pickup_text}"
+            },
+            {
+              "type": "if",
+              "condition": "${pickup_text contains '吸收'}",
+              "then": [
+                {
+                  "type": "assign",
+                  "target": "${pickup_region}",
+                  "value": 1
+                }
+              ],
+              "else": [
+                {
+                  "type": "ocr_text",
+                  "roi": [2041, 715, 111, 46],
+                  "output": "${pickup_text}"
+                },
+                {
+                  "type": "if",
+                  "condition": "${pickup_text contains '吸收'}",
+                  "then": [
+                    {
+                      "type": "assign",
+                      "target": "${pickup_region}",
+                      "value": 2
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "if",
+              "condition": "${pickup_region != 0}",
+              "then": [
+                {
+                  "type": "tap",
+                  "point": "${pickup_points[pickup_region - 1]}",
+                  "duration_ms": 100
+                },
+                {
+                  "type": "wait",
+                  "wait_ms": 200
+                },
+                {
+                  "type": "tap",
+                  "point": "${pickup_points[pickup_region - 1]}",
+                  "duration_ms": 100
+                },
+                {
+                  "type": "wait",
+                  "wait_ms": 800
+                },
+                {
+                  "type": "return"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "assign",
+          "target": "${move_count}",
+          "value": 0
+        },
+        {
+          "type": "while",
+          "condition": "${move_count < max_steps}",
+          "steps": [
+            {
+              "type": "drag",
+              "from": [501, 1080],
+              "to": "${return_directions[direction_index]}",
+              "duration_ms": 250
+            },
+            {
+              "type": "wait",
+              "wait_ms": 150
+            },
+            {
+              "type": "assign",
+              "target": "${move_count}",
+              "value": "${move_count + 1}"
+            }
+          ]
+        },
+        {
+          "type": "assign",
+          "target": "${direction_index}",
+          "value": "${direction_index + 1}"
+        }
+      ]
+    },
+    {
+      "type": "if",
+      "condition": "${props.fallback_script != ''}",
+      "then": [
+        {
+          "type": "script",
+          "script_name": "${props.fallback_script}"
+        }
+      ]
+    }
+  ]
+}

@@ -90,11 +90,12 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
 
     private func sendTouch(_ p: NSPoint, action: UInt8) {
         guard let (x, y) = pointToDevice(p), let sender = client?.controlSender else { return }
+        let pressure = TouchPressure.simulated(action: Int(action))
         let actionButton: Int32 = (action == ControlSender.actionMove) ? 0 : 1
         let buttons: Int32 = (action == ControlSender.actionUp) ? 0 : 1
         sender.sendTouch(action: action, x: x, y: y,
                          screenWidth: UInt16(deviceWidth), screenHeight: UInt16(deviceHeight),
-                         actionButton: actionButton, buttons: buttons)
+                         pressure: pressure, actionButton: actionButton, buttons: buttons)
 
         let operation: String
         switch action {
@@ -107,7 +108,7 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
 
         let relX = deviceWidth > 0 ? Double(x) / Double(deviceWidth) : 0
         let relY = deviceHeight > 0 ? Double(y) / Double(deviceHeight) : 0
-        recordEvent(.touch(action: Int(action), relX: relX, relY: relY, t: 0))
+        recordEvent(.touch(action: Int(action), relX: relX, relY: relY, t: 0, pressure: pressure))
     }
 
     private func handleScroll(_ event: NSEvent) {
@@ -709,9 +710,12 @@ final class StreamingWindowController: NSObject, NSWindowDelegate {
             let y = min(Int32(deviceHeight) - 1, Int32(relY * Double(deviceHeight)))
             let actionButton: Int32 = (action == ControlSender.actionMove) ? 0 : 1
             let buttons: Int32 = (action == ControlSender.actionUp) ? 0 : 1
+            let pressure = action == Int(ControlSender.actionUp)
+                ? 0 : event.pressure ?? TouchPressure.simulated(action: action)
             sender.sendTouch(action: UInt8(action), x: x, y: y,
                              screenWidth: UInt16(deviceWidth), screenHeight: UInt16(deviceHeight),
-                             actionButton: actionButton, buttons: buttons, pointerId: pointerId)
+                             pressure: pressure, actionButton: actionButton, buttons: buttons,
+                             pointerId: pointerId)
         case "scroll":
             guard let relX = event.relX, let relY = event.relY,
                   relX.isFinite, relY.isFinite, (0...1).contains(relX), (0...1).contains(relY) else { return }

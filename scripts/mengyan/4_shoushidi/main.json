@@ -37,13 +37,13 @@
             }
           ]
         },
-        {
+       {
           "type": "script",
-          "script_name": "pickup.json"
+          "script_name": "../../common/pickup.json"
         },
         {
           "type": "wait",
-          "wait_ms": 2000
+          "wait_ms": 1000
         },
         {
           "type": "script",

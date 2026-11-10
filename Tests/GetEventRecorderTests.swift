@@ -70,6 +70,9 @@ struct GetEventRecorderTests {
 
         precondition(events.map(\.action) == [0, 0, 2, 2, 1, 1])
         precondition(events.map(\.pointerId) == [42, 43, 42, 43, 43, 42])
+        precondition(events.dropLast(2).allSatisfy { (0.45...0.75).contains($0.pressure ?? -1) })
+        precondition(Set(events.dropLast(2).compactMap(\.pressure)).count > 1)
+        precondition(events.suffix(2).allSatisfy { $0.pressure == 0 })
         near(events[0].relX, 0.1, "rotated first x")
         near(events[0].relY, 0.9, "rotated first y")
         near(events[1].relX, 0.2, "rotated second x")
@@ -79,6 +82,15 @@ struct GetEventRecorderTests {
         let script = Script(deviceWidth: 2000, deviceHeight: 1000, events: events)
         let decoded = try Script.decode(from: script.encoded())
         precondition(decoded.events.map(\.pointerId) == events.map(\.pointerId))
+        precondition(decoded.events.map(\.pressure) == events.map(\.pressure))
+
+        let legacy = try Script.decode(from: Data(#"{"version":3,"deviceWidth":100,"deviceHeight":100,"events":[{"type":"touch","action":0,"relX":0.5,"relY":0.5,"t":0}]}"#.utf8))
+        precondition(legacy.events[0].pressure == nil)
+        for pressure in [-0.01, 1.01] {
+            let invalid = "{\"version\":3,\"deviceWidth\":100,\"deviceHeight\":100,\"events\":[{\"type\":\"touch\",\"action\":0,\"relX\":0.5,\"relY\":0.5,\"pressure\":\(pressure),\"t\":0}]}"
+            do { _ = try Script.decode(from: Data(invalid.utf8)); fatalError("Invalid pressure accepted") }
+            catch { }
+        }
 
         let incomplete = GetEventTouchParser(device: device, rotation: 0)
         _ = incomplete.consume("[ 11.000000] /dev/input/event2: EV_ABS ABS_MT_TRACKING_ID 0000002c")

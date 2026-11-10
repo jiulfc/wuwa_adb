@@ -39,13 +39,15 @@ struct PickupCheck {
                     if scenario == 4 && moves.count == expected.count && roi[1] == 715 { return .string("吸收") }
                     return .string("")
                 }, touch: { point, action in
-                    precondition(taps.isEmpty || action == .up, "No movement or tap after pickup")
-                    if action == .move { moves.append(point) }
+                    if action == .move {
+                        precondition(taps.isEmpty, "No movement after pickup")
+                        moves.append(point)
+                    }
                     if action == .down && point[0] == 2096.5 { taps.append(point) }
                 }, log: { _ in }).run(workflow)
             let moveCount = [expected.count, 0, 0, 3, expected.count][scenario]
             precondition(moves == Array(expected.prefix(moveCount)))
-            let expectedTaps: [[Double]] = [[], [612], [738], [612], [738]]
+            let expectedTaps: [[Double]] = [[], [612, 612], [738, 738], [612, 612], [738, 738]]
             precondition(taps.map { $0[1] } == expectedTaps[scenario])
         }
         for maxPhase in [0, 1] {
@@ -61,6 +63,58 @@ struct PickupCheck {
             precondition(moves == Array(expected.prefix(maxPhase * 2)), "Stop at the configured phase")
             precondition(reads == (maxPhase * 2 + 1) * 2, "Check both regions at the endpoint")
         }
+        let crossURL = URL(fileURLWithPath: "scripts/common/pickup_cross.json").standardizedFileURL
+        let crossOriginal = try WorkflowParser().parse(Data(contentsOf: crossURL))
+        let cross = Workflow(version: crossOriginal.version, variables: crossOriginal.variables,
+                             steps: crossOriginal.steps.map(fast))
+        let crossDirections: [[Double]] = [[501, 880], [501, 1280], [301, 1080], [701, 1080]]
+        let crossReturns: [[Double]] = [[501, 1280], [501, 880], [701, 1080], [301, 1080]]
+        guard case .number(let maxStepsValue)? = crossOriginal.variables["max_steps"],
+              case .number(let stepsPerCheckValue)? = crossOriginal.variables["steps_per_check"] else {
+            fatalError("Missing cross pickup configuration")
+        }
+        let maxSteps = Int(maxStepsValue)
+        let stepsPerCheck = Int(stepsPerCheckValue)
+        precondition(maxSteps > 0 && stepsPerCheck > 0)
+        let expectedCross = (0..<4).flatMap { arm in
+            Array(repeating: crossDirections[arm], count: maxSteps) +
+                Array(repeating: crossReturns[arm], count: maxSteps)
+        }
+        let pickupStep = min(maxSteps, stepsPerCheck * 2)
+        for findsPickup in [false, true] {
+            var moves: [[Double]] = []
+            var taps: [[Double]] = []
+            var reads = 0
+            var scripts: [String] = []
+            try WorkflowRunner(checkCancelled: {}, script: { name, _, _ in scripts.append(name) },
+                vision: { kind, roi, _, _ in
+                    precondition(kind == .ocrText)
+                    reads += 1
+                    if findsPickup && moves.count == pickupStep && roi[1] == 715 { return .string("吸收") }
+                    return .string("")
+                }, touch: { point, action in
+                    if action == .move { moves.append(point) }
+                    if action == .down && point[0] == 2096.5 { taps.append(point) }
+                }, log: { _ in }).run(cross.applying(props: ["fallback_script": .string("pickup.json")]))
+            if findsPickup {
+                precondition(moves == Array(repeating: crossDirections[0], count: pickupStep))
+                precondition(taps.map { $0[1] } == [738, 738])
+                precondition(reads == ((pickupStep + stepsPerCheck - 1) / stepsPerCheck) * 2)
+                precondition(scripts.isEmpty, "Cross pickup must not start the circle after finding pickup")
+            } else {
+                precondition(moves == expectedCross, "Cross pickup must return to center after every arm")
+                precondition(taps.isEmpty)
+                let checksPerArm = (maxSteps + stepsPerCheck - 1) / stepsPerCheck
+                precondition(reads == checksPerArm * 2 * crossDirections.count,
+                             "Cross pickup must check both regions at the configured interval")
+                precondition(scripts == ["pickup.json"], "Circle pickup must run after the cross misses")
+            }
+        }
+        let crossCircleURL = URL(fileURLWithPath: "scripts/common/pickup_cross_circle.json").standardizedFileURL
+        let crossCircle = try WorkflowParser().parse(Data(contentsOf: crossCircleURL))
+        precondition(crossCircle.steps == [.script(name: .literal(.string("pickup_cross.json")), props: .object([
+            "fallback_script": .literal(.string("pickup.json"))
+        ]))])
         let juluoCommon = URL(fileURLWithPath: "scripts/juluo/pickup.json").standardizedFileURL
         let quickOriginal = try WorkflowParser().parse(Data(contentsOf: juluoCommon))
         let quick = Workflow(version: quickOriginal.version, variables: quickOriginal.variables,
@@ -85,10 +139,11 @@ struct PickupCheck {
                 ]))
             precondition(moves == Array(repeating: [501, 880], count: [0, 0, 1, 2, 2][scenario]),
                          "Quick pickup moves at most one phase")
-            let expectedTaps: [[Double]] = [[612], [738], [612], [738], []]
+            let expectedTaps: [[Double]] = [[612, 612], [738, 738], [612, 612], [738, 738], []]
             precondition(taps.map { $0[1] } == expectedTaps[scenario])
-            let expectedScripts = scenario == 4 ? ["fixture/pickup_prepare.json", "../common/pickup.json"] : []
-            precondition(scripts == expectedScripts, "Prepare must immediately precede the original pickup")
+            let expectedScripts = scenario == 4 ? ["fixture/pickup_prepare.json", "../common/pickup_cross.json"] : []
+            precondition(scripts == expectedScripts,
+                         "Prepare must immediately precede the original pickup in scenario \(scenario): \(scripts)")
         }
         let files = FileManager.default.enumerator(at: URL(fileURLWithPath: "scripts"), includingPropertiesForKeys: nil)!
         var wrappers = 0
@@ -111,8 +166,8 @@ struct PickupCheck {
             wrappers += 1
         }
         precondition(wrappers == 12)
-        precondition(juluoCommon.deletingLastPathComponent().appendingPathComponent("../common/pickup.json")
-            .standardizedFileURL == common)
+        precondition(juluoCommon.deletingLastPathComponent().appendingPathComponent("../common/pickup_cross.json")
+            .standardizedFileURL == crossURL)
         for name in ["1_mengshu", "2_luoyuan", "3_wangmang", "4_fusheng", "5_xianzu"] {
             let main = try WorkflowParser().parse(Data(contentsOf: URL(fileURLWithPath: "scripts/juluo/\(name)/main.json")))
             let fastMain = Workflow(version: main.version, variables: main.variables, steps: main.steps.map(fast))
@@ -123,10 +178,10 @@ struct PickupCheck {
                     return .string("已清")
                 }, touch: { _, _ in fatalError("Pickup is extracted from main") }, log: { _ in }).run(fastMain)
             var expectedScripts = name == "1_mengshu" ? ["prepare.json"] : ["../../common/reset_team_kxq.json", "prepare.json"]
-            expectedScripts += ["pickup.json", "finish.json"]
-            precondition(scripts == expectedScripts, "Every Juluo main delegates pickup and always finishes")
+            expectedScripts += ["pickup.json", "../../common/route_to_quan_xi_huan_tong/main.json"]
+            precondition(scripts == expectedScripts, "Every Juluo main delegates pickup and returns through the shared route")
         }
-        print("Pickup spiral, return after tap in either region, endpoint, and all 12 wrappers passed")
-        print("All five Juluo scripts: instant, one-phase, prepare-then-original fallback, and finish passed")
+        print("Pickup spiral and cross, return after tap in either region, endpoint, and all 12 wrappers passed")
+        print("All five Juluo scripts: instant, one-phase, prepare-then-cross fallback, and return route passed")
     }
 }

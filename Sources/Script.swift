@@ -7,6 +7,7 @@ struct ScriptEvent: Codable {
     var action: Int?          // touch: 0=down, 1=up, 2=move
     var relX: Double?         // relative x, 0~1
     var relY: Double?         // relative y, 0~1
+    var pressure: Double?     // touch pressure, 0~1; nil keeps old recordings compatible
     var hScroll: Int16?
     var vScroll: Int16?
     var key: String?          // "home" | "back" | "rotate" | "power"
@@ -16,17 +17,24 @@ struct ScriptEvent: Codable {
 
 extension ScriptEvent {
     static func touch(action: Int, relX: Double, relY: Double, t: Double,
-                      pointerId: Int64? = nil) -> ScriptEvent {
+                      pressure: Double? = nil, pointerId: Int64? = nil) -> ScriptEvent {
         ScriptEvent(type: "touch", action: action, relX: relX, relY: relY,
+                    pressure: pressure ?? TouchPressure.simulated(action: action),
                     hScroll: nil, vScroll: nil, key: nil, t: t, pointerId: pointerId)
     }
     static func scroll(relX: Double, relY: Double, hScroll: Int16, vScroll: Int16, t: Double) -> ScriptEvent {
         ScriptEvent(type: "scroll", action: nil, relX: relX, relY: relY,
-                    hScroll: hScroll, vScroll: vScroll, key: nil, t: t, pointerId: nil)
+                    pressure: nil, hScroll: hScroll, vScroll: vScroll, key: nil, t: t, pointerId: nil)
     }
     static func key(_ key: String, t: Double) -> ScriptEvent {
         ScriptEvent(type: "key", action: nil, relX: nil, relY: nil,
-                    hScroll: nil, vScroll: nil, key: key, t: t, pointerId: nil)
+                    pressure: nil, hScroll: nil, vScroll: nil, key: key, t: t, pointerId: nil)
+    }
+}
+
+enum TouchPressure {
+    static func simulated(action: Int) -> Double {
+        action == 1 ? 0 : Double.random(in: 0.45...0.75)
     }
 }
 
@@ -48,6 +56,13 @@ struct Script: Codable {
         }
         guard events.allSatisfy({ ($0.pointerId ?? -1) >= -1 }) else {
             throw replayError("Invalid touch pointer ID.")
+        }
+        guard events.allSatisfy({ event in
+            guard let pressure = event.pressure else { return true }
+            return event.type == "touch" && pressure.isFinite && (0...1).contains(pressure)
+                && (event.action != 1 || pressure == 0)
+        }) else {
+            throw replayError("Invalid touch pressure.")
         }
     }
 
