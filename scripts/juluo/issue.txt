@@ -1,3 +1,0 @@
-optimize
-
-1. 3_mangwang may miss pickup, try pickup_cross logic
